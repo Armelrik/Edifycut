@@ -1,5 +1,6 @@
 "use client";
 
+import { hasPro, PRO_PRICE } from "@/lib/plans";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -55,6 +56,7 @@ export function AccountPanel({ user, initialMode = "login" }: { user: UserAccoun
             <div className="min-w-0 flex-1"><p className="font-semibold">{user.name}</p><p className="break-all text-sm text-zinc-500">{user.email}</p></div>
             {user.role === "admin" && <Link href="/admin" className="inline-flex items-center gap-2 text-sm font-medium text-indigo-700"><ShieldCheck size={18} /> Administration</Link>}
           </div>
+          <section className="border-b border-zinc-200 pb-5"><h2 className="text-lg font-semibold">{hasPro(user.proUntil) ? "EdifyCut Pro" : "Offre gratuite"}</h2><p className="mt-2 text-sm text-zinc-500">{hasPro(user.proUntil) ? `Accès Pro jusqu’au ${new Date(user.proUntil!).toLocaleDateString("fr-FR")}.` : `Pro à ${PRO_PRICE} par an pour les exports avancés.`}</p><Link href="/pro" className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-indigo-700">Offre et abonnement</Link></section>
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void submit("profile", Object.fromEntries(new FormData(event.currentTarget))); }}>
             <h2 className="text-lg font-semibold">Informations personnelles</h2>
             <label className="field-label max-w-md">Nom<Input name="name" defaultValue={user.name} autoComplete="name" required maxLength={80} /></label>

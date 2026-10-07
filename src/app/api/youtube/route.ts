@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
-import { getDownloadProgress, removeDownloadProgress, setDownloadProgress } from "@/lib/video/youtube-progress";
+import {
+  getDownloadProgress,
+  removeDownloadProgress,
+  setDownloadProgress,
+} from "@/lib/video/youtube-progress";
 import {
   MAX_BYTES,
   YtError,
@@ -17,14 +21,17 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 900;
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const id = new URL(request.url).searchParams.get("progress") ?? "";
   const progress = getDownloadProgress(id);
-  return NextResponse.json(progress ?? { stage: "preparing", percent: null, track: null }, {
-    headers: { "Cache-Control": "no-store" },
-  });
+  return NextResponse.json(
+    progress ?? { stage: "preparing", percent: null, track: null },
+    {
+      headers: { "Cache-Control": "no-store" },
+    },
+  );
 }
 
 const MIME: Record<string, string> = {
@@ -81,19 +88,31 @@ export async function POST(request: Request) {
     const format = String(body?.format ?? "mp4");
     const quality = Number(body?.quality);
     const formatArgs = buildArgs(type, format, quality);
-    if (typeof body?.downloadId === "string" && /^[a-f0-9-]{36}$/i.test(body.downloadId)) {
+    if (
+      typeof body?.downloadId === "string" &&
+      /^[a-f0-9-]{36}$/i.test(body.downloadId)
+    ) {
       const id: string = body.downloadId;
       downloadId = id;
-      setDownloadProgress(id, { stage: "preparing", percent: null, track: null });
+      setDownloadProgress(id, {
+        stage: "preparing",
+        percent: null,
+        track: null,
+      });
     }
 
     dir = await mkdtemp(path.join(tmpdir(), "yt-"));
     const args = [
       ...baseArgs(),
       ...formatArgs,
-      "--progress", "--newline", "--progress-delta", "0.5",
-      "--progress-template", 'download:EDIFYCUT_PROGRESS:{"downloaded_bytes":%(progress.downloaded_bytes)j,"total_bytes":%(progress.total_bytes)j,"total_bytes_estimate":%(progress.total_bytes_estimate)j,"vcodec":%(info.vcodec)j}',
-      "--progress-template", "postprocess:EDIFYCUT_CONVERTING",
+      "--progress",
+      "--newline",
+      "--progress-delta",
+      "0.5",
+      "--progress-template",
+      'download:EDIFYCUT_PROGRESS:{"downloaded_bytes":%(progress.downloaded_bytes)j,"total_bytes":%(progress.total_bytes)j,"total_bytes_estimate":%(progress.total_bytes_estimate)j,"vcodec":%(info.vcodec)j}',
+      "--progress-template",
+      "postprocess:EDIFYCUT_CONVERTING",
       "--no-part",
       "--no-mtime",
       "--restrict-filenames",
@@ -114,18 +133,31 @@ export async function POST(request: Request) {
         if (!downloadId) return;
         for (const line of lines) {
           if (line.startsWith("EDIFYCUT_CONVERTING")) {
-            setDownloadProgress(downloadId, { stage: "converting", percent: null, track: null });
+            setDownloadProgress(downloadId, {
+              stage: "converting",
+              percent: null,
+              track: null,
+            });
           } else if (line.startsWith("EDIFYCUT_PROGRESS:")) {
             try {
-              const progress = JSON.parse(line.slice("EDIFYCUT_PROGRESS:".length));
-              const total = Number(progress.total_bytes || progress.total_bytes_estimate);
+              const progress = JSON.parse(
+                line.slice("EDIFYCUT_PROGRESS:".length),
+              );
+              const total = Number(
+                progress.total_bytes || progress.total_bytes_estimate,
+              );
               const downloaded = Number(progress.downloaded_bytes);
               setDownloadProgress(downloadId, {
                 stage: "downloading",
-                percent: total > 0 && Number.isFinite(downloaded) ? Math.min(100, Math.round(downloaded / total * 100)) : null,
+                percent:
+                  total > 0 && Number.isFinite(downloaded)
+                    ? Math.min(100, Math.round((downloaded / total) * 100))
+                    : null,
                 track: progress.vcodec === "none" ? "audio" : "vidéo",
               });
-            } catch { /* Ignore incomplete upstream progress records. */ }
+            } catch {
+              /* Ignore incomplete upstream progress records. */
+            }
           }
         }
       },
@@ -167,10 +199,17 @@ export async function POST(request: Request) {
       );
 
     const ext = path.extname(name).slice(1) || format;
-    if (downloadId) setDownloadProgress(downloadId, { stage: "converting", percent: null, track: null });
+    if (downloadId)
+      setDownloadProgress(downloadId, {
+        stage: "converting",
+        percent: null,
+        track: null,
+      });
     const nodeStream = createReadStream(/* turbopackIgnore: true */ filePath);
     const abortStream = () => nodeStream.destroy();
-    nodeStream.on("close", () => request.signal.removeEventListener("abort", abortStream));
+    nodeStream.on("close", () =>
+      request.signal.removeEventListener("abort", abortStream),
+    );
     nodeStream.on("close", cleanup);
     nodeStream.on("error", cleanup);
     request.signal.addEventListener("abort", abortStream, {

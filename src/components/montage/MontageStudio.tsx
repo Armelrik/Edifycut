@@ -1,4 +1,5 @@
 "use client";
+import { useExportAccess, ExportPlanNotice } from "@/components/account/ExportAccess";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Upload, Play, Pause, Download, Share2, Trash2, ArrowLeft, ArrowRight, Undo2, Redo2, Save, X, Film, AudioLines, Scissors, Volume2, VolumeX, SkipBack, SkipForward, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -190,7 +191,9 @@ function MontageStudio({ initial }: { initial?: MontageProject }) {
       }
     }
   }
+  const access = useExportAccess();
   async function exportMontage() {
+    if (busy || importing || !await access.allow({ kind: "video", duration, quality: settings.resolution })) return;
     const token = ++version.current; const processor = new MontageProcessor(); worker.current = processor;
     setBusy(true); setPlaying(false); setResult(null); setError(""); setProgress(0);
     try {
@@ -212,7 +215,7 @@ function MontageStudio({ initial }: { initial?: MontageProject }) {
   const selectedEntry = timeline.find(entry => entry.clip.id === selected);
   const displayTime = Math.max(0, Math.min(time, duration)), active = timeline.filter(entry => displayTime >= entry.start && displayTime < entry.end);
   if (!active.length && timeline.length) active.push(timeline.at(-1)!);
-  const locked = busy || importing;
+  const locked = busy || importing || access.checking;
   const canSplit = currentAudio ? tracks.length < 4 && displayTime > currentAudio.offset + 0.1 && displayTime < Math.min(duration, currentAudio.offset + audioDuration(currentAudio)) - 0.1 : !!selectedEntry && clips.length < 12 && displayTime > selectedEntry.start + 0.1 && displayTime < selectedEntry.end - 0.1;
   const audioValid = tracks.every(track => audioDuration(track) >= 0.1 && track.start >= 0 && track.end <= track.sourceDuration && (track.muted || track.volume === 0 || resources.has(track.id) && track.offset < duration));
   function split() {
@@ -286,6 +289,7 @@ function MontageStudio({ initial }: { initial?: MontageProject }) {
       <div className="order-2 min-w-0 lg:order-3 lg:col-span-2"><MontageTimeline onDropMedia={placeMedia} clips={clips} tracks={tracks} resources={resources} selected={selected} time={displayTime} duration={duration} originalVolume={settings.originalVolume ?? 1} disabled={locked} onSelect={select} onSeek={value => { setTime(value); setPlaying(false); }} onBeginEdit={remember} onTrim={trim} onAudioEdit={audioEdit} onReorder={move} onOriginalVolume={() => { remember(); setSettings({ ...settings, originalVolume: (settings.originalVolume ?? 1) > 0 ? 0 : 1 }); }} /></div>
     </div>
     <div className="flex flex-wrap items-center gap-3 border-t border-zinc-200 pt-4"><Button disabled={locked || !clips.length || !audioValid || clips.some(clip => !resources.has(clip.id) || clipDuration(clip) < 0.1)} onClick={exportMontage}><Film size={18} />Exporter le montage MP4</Button>{busy && <Button variant="secondary" onClick={() => { version.current++; worker.current?.terminate(); worker.current = null; setBusy(false); setStatus("Export annulé."); }}><X size={18} />Annuler</Button>}{status && <p role="status" className="text-xs text-zinc-500">{status}{busy ? ` · ${progress} %` : ""}</p>}</div>
+    {access.paywall}<ExportPlanNotice />
     {busy && <progress aria-label="Progression de l'export montage" max="100" value={progress} className="h-2 w-full" />}
     {result && <section className="space-y-4 border-t border-zinc-200 pt-5"><h2 className="break-words font-semibold">{result.name}</h2><video src={result.url} controls playsInline className="max-h-[480px] w-full" /><div className="flex flex-wrap gap-3"><Button onClick={download}><Download size={18} />Télécharger</Button><Button variant="secondary" onClick={share}><Share2 size={18} />Partager</Button></div></section>}
   </div>;

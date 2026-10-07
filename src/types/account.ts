@@ -5,4 +5,5 @@ export type UserAccount = {
   role: "user" | "admin";
   disabled: boolean;
   createdAt: string;
+  proUntil: string | null;
 };

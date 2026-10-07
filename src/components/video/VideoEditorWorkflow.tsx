@@ -1,4 +1,5 @@
 "use client";
+import { useExportAccess, ExportPlanNotice } from "@/components/account/ExportAccess";
 
 import { DragEvent, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { CheckCircle2, FileVideo, Share2, Trash2, Upload, Scissors, WandSparkles, Undo2, RotateCcw, X, Flag, Save } from "lucide-react";
@@ -35,6 +36,7 @@ const initialSettings: EditorSettings = {
 const steps = ["Importer", "Modifier", "Exporter"];
 
 export function VideoEditorWorkflow({ projectId }: { projectId?: string }) {
+  const access = useExportAccess();
   const savedId = useRef(projectId || "");
   const savedName = useRef("");
   const projectsRaw = useSyncExternalStore(subscribeProjects, projectSnapshot, () => null);
@@ -64,7 +66,7 @@ export function VideoEditorWorkflow({ projectId }: { projectId?: string }) {
   const [editMessage, setEditMessage] = useState<string | null>(null);
   const [history, setHistory] = useState<EditorSettings[]>([]);
   const cancelled = useRef(false);
-  const busy = isExporting || isAnalyzing;
+  const busy = isExporting || isAnalyzing || access.checking;
   useEffect(() => {
     if (!file || !metadata || !readStudio().autosave) return;
     const timer = setTimeout(() => {
@@ -201,6 +203,7 @@ export function VideoEditorWorkflow({ projectId }: { projectId?: string }) {
 
   const handleExport = async () => {
     if (!file || !metadata || busy || estimatedDuration <= 0) return;
+    if (!await access.allow({ kind: "video", duration: estimatedDuration, quality: settings.quality })) return;
     cancelled.current = false;
     setError(null);
     setExportResult(null);
@@ -458,6 +461,7 @@ export function VideoEditorWorkflow({ projectId }: { projectId?: string }) {
                 />
                 <Button type="button" variant="ghost" onClick={() => { changeSettings({ trimStart: 0, trimEnd: 0, speed: 1, cuts: [], effects: { ...neutralEffects } }); setCutMarker(null); setEditMessage("Coupes, vitesse et effets réinitialisés."); }}><RotateCcw size={16} /> Réinitialiser le montage</Button>
               </Card></fieldset>
+              {access.paywall}<ExportPlanNotice />
               <ExportPanel
                 metadata={metadata}
                 settings={settings}

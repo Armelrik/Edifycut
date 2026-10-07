@@ -28,5 +28,16 @@ export type Account = {
 };
 
 export function publicAccount(user: Account) {
-  return { id: user.id, email: user.email, name: user.name, role: user.role, disabled: Boolean(user.disabled), createdAt: user.created_at };
+  return { id: user.id, email: user.email, name: user.name, role: user.role, disabled: Boolean(user.disabled), createdAt: user.created_at, proUntil: proUntil(user.id) };
+}
+
+export function proDatabase() {
+  const db = database();
+  db.exec("CREATE TABLE IF NOT EXISTS pro_access (user_id TEXT PRIMARY KEY, expires_at TEXT NOT NULL, granted_by TEXT NOT NULL, updated_at TEXT NOT NULL)");
+  return db;
+}
+export function proUntil(id: string): string | null {
+  const access = proDatabase().prepare("SELECT expires_at, granted_by FROM pro_access WHERE user_id = ?").get(id) as { expires_at: string; granted_by: string } | undefined;
+  if (process.env.PAYPAL_ENV === "live" && access?.granted_by.startsWith("paypal:sandbox:")) return null;
+  return access?.expires_at ?? null;
 }

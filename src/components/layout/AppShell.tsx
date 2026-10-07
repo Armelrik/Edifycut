@@ -20,7 +20,7 @@ const navItems = [
   { href: "/videos", label: "Mes vidéos", mobile: "Vidéos", icon: FolderOpen },
   { href: "/settings", label: "Préférences", mobile: "Réglages", icon: Settings },
 ];
-const infoLinks = [{ href: "/about", label: "À propos" }, { href: "/help", label: "Aide" }, { href: "/privacy", label: "Confidentialité" }, { href: "/terms", label: "Conditions" }];
+const infoLinks = [{ href: "/pro", label: "EdifyCut Pro" },{ href: "/about", label: "À propos" }, { href: "/help", label: "Aide" }, { href: "/privacy", label: "Confidentialité" }, { href: "/terms", label: "Conditions" }];
 
 export function AppShell({ children, user }: { children: React.ReactNode; user: UserAccount | null }) {
   const pathname = usePathname();

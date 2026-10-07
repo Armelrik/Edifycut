@@ -1,5 +1,6 @@
 "use client";
 
+import { hasPro } from "@/lib/plans";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, Users, KeyRound, UserPlus } from "lucide-react";
@@ -20,7 +21,7 @@ export function AdminUsers({ users, currentId }: { users: UserAccount[]; current
       const response = await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...data }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
-      setMessage("Compte mis à jour. Ses sessions précédentes ont été invalidées.");
+      setMessage(data.proAction ? "Accès Pro mis à jour." : "Compte mis à jour. Ses sessions précédentes ont été invalidées.");
       setResetId(null); router.refresh();
     } catch (error) { setError(error instanceof Error ? error.message : "La demande a échoué."); }
     finally { setBusy(false); }
@@ -48,6 +49,7 @@ export function AdminUsers({ users, currentId }: { users: UserAccount[]; current
               <label className="sr-only" htmlFor={`role-${user.id}`}>Rôle de {user.name}</label>
               <select id={`role-${user.id}`} className="h-11 rounded-md border border-zinc-200 bg-white px-3 text-sm" value={user.role} disabled={busy || user.id === currentId} onChange={event => void update(user.id, { role: event.target.value })}><option value="user">Utilisateur</option><option value="admin">Administrateur</option></select>
               <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="size-4 accent-indigo-600" checked={!user.disabled} disabled={busy || user.id === currentId} onChange={event => void update(user.id, { disabled: !event.target.checked })} /> Actif</label>
+              <span className="text-xs text-zinc-500">{hasPro(user.proUntil) ? `Pro jusqu’au ${new Date(user.proUntil!).toLocaleDateString("fr-FR")}` : "Gratuit"}</span><Button variant="secondary" disabled={busy || user.disabled} onClick={() => { if (window.confirm("Accorder un an de Pro à ce compte ? Cette action ne prélève aucun paiement.")) void update(user.id, { proAction: "grant" }); }}>Pro + 1 an</Button>{hasPro(user.proUntil) && <Button variant="ghost" disabled={busy} onClick={() => { if (window.confirm("Retirer cet accès Pro ?")) void update(user.id, { proAction: "revoke" }); }}>Retirer Pro</Button>}
               {user.id !== currentId && <Button type="button" variant="ghost" disabled={busy} onClick={() => setResetId(resetId === user.id ? null : user.id)}><KeyRound size={17} /> Réinitialiser</Button>}
             </div>
           </div>

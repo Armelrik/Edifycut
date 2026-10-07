@@ -26,8 +26,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="fr"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head><script dangerouslySetInnerHTML={{ __html: `try{var p=JSON.parse(localStorage.getItem("edifycut-studio-preferences")||"{}");document.documentElement.dataset.theme=(p.theme==="dark"||p.theme!=="light"&&p.theme!=="dark"&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light"}catch{}` }} /></head>
       <body className="min-h-full text-zinc-950">
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:bg-white focus:p-3">Aller au contenu</a>
         <AppShell user={user ? publicAccount(user) : null}>{children}</AppShell>

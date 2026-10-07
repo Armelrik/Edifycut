@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { compare, hash } from "bcryptjs";
 import { database, publicAccount, type Account } from "@/lib/account/database";
 import { session, currentUser } from "@/lib/account/session";
+import { presenceTable } from "@/lib/account/presence";
 import { AccountError, accountError, checkOrigin, readBody, validName, validPassword } from "@/lib/account/http";
 
 export const runtime = "nodejs";
@@ -11,7 +12,10 @@ export async function POST(request: Request, context: { params: Promise<{ action
     checkOrigin(request);
     const { action } = await context.params;
     const auth = await session();
-    if (action === "logout") { auth.destroy(); return Response.json({ ok: true }); }
+    if (action === "logout") {
+      if (auth.userId) presenceTable().prepare("DELETE FROM user_presence WHERE user_id = ? AND version = ?").run(auth.userId, auth.version ?? 0);
+      auth.destroy(); return Response.json({ ok: true });
+    }
     const body = await readBody(request);
     const db = database();
     if (action === "login" || action === "register") {

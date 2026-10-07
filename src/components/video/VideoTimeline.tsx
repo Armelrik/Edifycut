@@ -1,48 +1,30 @@
 "use client";
 
-import { EditorSettings, VideoMetadata } from "@/types/video";
-import { formatDuration } from "@/lib/video/duration";
+import type { EditorSettings, VideoMetadata } from "@/types/video";
+import { preciseTime } from "@/lib/video/editing";
 import { getEstimatedDuration } from "@/lib/video/video-utils";
 
-export function VideoTimeline({ metadata, settings }: { metadata: VideoMetadata | null; settings: EditorSettings }) {
-  const duration = metadata?.duration || 0;
-  const startPercent = duration ? Math.min(100, (settings.trimStart / duration) * 100) : 0;
-  const endPercent = duration ? Math.min(100, (settings.trimEnd / duration) * 100) : 0;
-  const selectedWidth = Math.max(0, 100 - startPercent - endPercent);
-
+export function VideoTimeline({ metadata, settings, currentTime, onSeek, onBoundsChange, cutMarker }: {
+  metadata: VideoMetadata; settings: EditorSettings; currentTime: number;
+  onSeek: (time: number) => void; onBoundsChange: (start: number, end: number) => void; cutMarker: number | null;
+}) {
+  const duration = metadata.duration;
+  const start = settings.trimStart;
+  const end = duration - settings.trimEnd;
+  const percent = (time: number) => Math.max(0, Math.min(100, time / duration * 100));
   return (
-    <section className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm sm:p-4">
-      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2">
-        <h2 className="font-semibold">Timeline</h2>
-        <div className="text-xs leading-5 text-stone-500 sm:text-sm">
-          Duree originale : {formatDuration(duration)}
-          <span className="hidden sm:inline"> · </span>
-          <br className="sm:hidden" />
-          Duree estimee : {formatDuration(getEstimatedDuration(metadata, settings))}
-        </div>
+    <section className="space-y-4 rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Votre extrait</h2><span className="text-sm text-indigo-700">Durée finale : {preciseTime(getEstimatedDuration(metadata, settings))}</span></div>
+      <div className="relative h-24 overflow-hidden rounded-md bg-zinc-200">
+        <button type="button" aria-label="Positionner la lecture sur la timeline" className="absolute inset-0 w-full cursor-crosshair" onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); onSeek((event.clientX - rect.left) / rect.width * duration); }} />
+        <div className="pointer-events-none absolute inset-y-3 border-y-2 border-indigo-500 bg-indigo-100" style={{ left: percent(start) + "%", width: percent(end - start) + "%" }} />
+        {(settings.cuts ?? []).map(cut => <div key={cut.id} className={"pointer-events-none absolute inset-y-4 " + (cut.enabled ? "bg-red-300/80" : "border border-dashed border-amber-500 bg-amber-100/60")} style={{ left: percent(cut.start) + "%", width: percent(cut.end - cut.start) + "%" }} />)}
+        {cutMarker !== null && <div className="pointer-events-none absolute inset-y-0 border-l-2 border-dashed border-red-600" style={{ left: percent(cutMarker) + "%" }} />}
+        <div className="pointer-events-none absolute inset-y-0 border-l-2 border-zinc-900" style={{ left: percent(currentTime) + "%" }} />
+        <input aria-label="Borne de début" type="range" min={0} max={duration} step={0.01} value={start} className="trim-handle absolute inset-x-0 top-3" onChange={event => onBoundsChange(Math.min(Number(event.target.value), end - 0.05), end)} />
+        <input aria-label="Borne de fin" type="range" min={0} max={duration} step={0.01} value={end} className="trim-handle absolute inset-x-0 top-12" onChange={event => onBoundsChange(start, Math.max(start + 0.05, Number(event.target.value)))} />
       </div>
-      <div className="relative h-20 overflow-hidden rounded-md bg-stone-900 sm:h-24">
-        <div className="absolute inset-0 grid grid-cols-10 opacity-70">
-          {Array.from({ length: 10 }).map((_, index) => (
-            <div
-              key={index}
-              className={`border-r border-white/10 ${index % 2 === 0 ? "bg-amber-200/20" : "bg-stone-100/10"}`}
-            />
-          ))}
-        </div>
-        <div className="absolute inset-y-0 bg-black/50" style={{ left: 0, width: `${startPercent}%` }} />
-        <div className="absolute inset-y-0 bg-black/50" style={{ right: 0, width: `${endPercent}%` }} />
-        <div
-          className="absolute inset-y-3 rounded border-2 border-amber-400 bg-amber-300/20"
-          style={{ left: `${startPercent}%`, width: `${selectedWidth}%` }}
-        />
-        <div className="absolute bottom-2 left-2 text-[11px] font-medium text-white/80 sm:left-3 sm:text-xs">
-          {formatDuration(settings.trimStart)}
-        </div>
-        <div className="absolute bottom-2 right-2 text-[11px] font-medium text-white/80 sm:right-3 sm:text-xs">
-          -{formatDuration(settings.trimEnd)}
-        </div>
-      </div>
+      <div className="flex flex-wrap justify-between gap-2 font-mono text-xs text-zinc-500"><span>Début {preciseTime(start)}</span><span>Fin {preciseTime(end)}</span></div>
     </section>
   );
 }

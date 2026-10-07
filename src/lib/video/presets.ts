@@ -6,30 +6,30 @@ export const presets: Array<{
   id: VideoPresetId;
   name: string;
   description: string;
-  settings: Pick<EditorSettings, "speed" | "quality" | "optimizeForWhatsApp">;
+  settings: Pick<EditorSettings, "quality" | "optimizeForWhatsApp">;
 }> = [
   {
     id: "original",
     name: "Original",
-    description: "Vitesse 1x, qualite source",
-    settings: { speed: 1, quality: "original", optimizeForWhatsApp: false },
+    description: "Qualité source, vitesse inchangée",
+    settings: { quality: "original", optimizeForWhatsApp: false },
   },
   {
     id: "fast",
-    name: "Rapide",
-    description: "Vitesse 1.5x, export 720p",
-    settings: { speed: 1.5, quality: "720p", optimizeForWhatsApp: false },
+    name: "Équilibré",
+    description: "720p, qualité et poids équilibrés",
+    settings: { quality: "720p", optimizeForWhatsApp: false },
   },
   {
     id: "whatsapp",
     name: "WhatsApp",
-    description: "Mobile, 720p, compression optimisee",
-    settings: { speed: 1.25, quality: "720p", optimizeForWhatsApp: true },
+    description: "720p, compression pour le partage",
+    settings: { quality: "720p", optimizeForWhatsApp: true },
   },
   {
     id: "compact",
     name: "Compact",
-    description: "Vitesse 1.5x, 480p, compression forte",
-    settings: { speed: 1.5, quality: "480p", optimizeForWhatsApp: true },
+    description: "480p, fichier plus léger",
+    settings: { quality: "480p", optimizeForWhatsApp: true },
   },
 ];

@@ -9,11 +9,11 @@ export function PresetSelector({
   onApply,
 }: {
   activePreset: VideoPresetId | null;
-  onApply: (settings: Pick<EditorSettings, "speed" | "quality" | "optimizeForWhatsApp">, id: VideoPresetId) => void;
+  onApply: (settings: Pick<EditorSettings, "quality" | "optimizeForWhatsApp">, id: VideoPresetId) => void;
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="font-semibold">Presets</h2>
+      <h2 className="font-semibold">Presets d&apos;export</h2>
       <div className="grid gap-2 sm:grid-cols-2">
         {presets.map((preset) => (
           <button
@@ -22,11 +22,11 @@ export function PresetSelector({
             onClick={() => onApply(preset.settings, preset.id)}
             className={cn(
               "rounded-md border p-3 text-left transition",
-              activePreset === preset.id ? "border-amber-700 bg-amber-50" : "border-stone-200 bg-white hover:bg-stone-100",
+              activePreset === preset.id ? "border-indigo-700 bg-indigo-50" : "border-zinc-200 bg-white hover:bg-zinc-100",
             )}
           >
             <span className="block text-sm font-semibold">{preset.name}</span>
-            <span className="mt-1 block text-xs leading-5 text-stone-500">{preset.description}</span>
+            <span className="mt-1 block text-xs leading-5 text-zinc-500">{preset.description}</span>
           </button>
         ))}
       </div>

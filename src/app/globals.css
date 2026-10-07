@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fafaf8;
-  --foreground: #1c1917;
-  --accent: #b45309;
+  --background: #f7f8fc;
+  --foreground: #18181b;
+  --accent: #4338ca;
 }
 
 @theme inline {
@@ -15,6 +15,7 @@
 
 * {
   box-sizing: border-box;
+  letter-spacing: 0;
 }
 
 html {
@@ -22,11 +23,9 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(circle at top left, rgba(245, 158, 11, 0.09), transparent 28rem),
-    linear-gradient(180deg, #fbfaf8 0%, #f5f1ea 100%);
+  background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
 button,
@@ -36,9 +35,49 @@ select {
 }
 
 video {
-  background: #11100f;
+  background: #09090b;
 }
 
 ::selection {
-  background: rgba(180, 83, 9, 0.22);
+  background: #c7d2fe;
+  color: #312e81;
 }
+
+button:not(:disabled), select:not(:disabled) { cursor: pointer; }
+:focus-visible { outline: 2px solid #6366f1; outline-offset: 3px; }
+.eyebrow { font-size: 12px; font-weight: 600; color: #4f46e5; }
+.field-label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: 500; }
+.field-label input { height: 46px; font-size: 16px; font-weight: 400; }
+.info-copy p { color: #52525b; line-height: 1.8; }
+.info-copy h2 { margin-top: 28px; margin-bottom: 10px; font-size: 18px; font-weight: 600; }
+progress { overflow: hidden; border: 0; border-radius: 4px; background: #e4e4e7; }
+progress::-webkit-progress-bar { background: #e4e4e7; }
+progress::-webkit-progress-value { background: #4f46e5; transition: width 200ms; }
+progress::-moz-progress-bar { background: #4f46e5; }
+.trim-handle { appearance: none; height: 32px; margin: 0; background: transparent; pointer-events: none; }
+.trim-handle::-webkit-slider-thumb { appearance: none; width: 20px; height: 32px; border: 2px solid white; border-radius: 4px; background: #4338ca; pointer-events: auto; cursor: ew-resize; }
+.trim-handle::-moz-range-thumb { width: 18px; height: 28px; border: 2px solid white; border-radius: 4px; background: #4338ca; pointer-events: auto; cursor: ew-resize; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+.montage-media { object-fit: contain; }
+[data-fit="cover"] .montage-media { object-fit: cover; }
+.studio-ui { --studio-primary: #4f46e5; --studio-deep: #4338ca; --studio-tint: #eef2ff; }
+.studio-ui[data-accent="cyan"] { --studio-primary: #0e7490; --studio-deep: #155e75; --studio-tint: #ecfeff; }
+.studio-ui[data-accent="rose"] { --studio-primary: #be185d; --studio-deep: #9d174d; --studio-tint: #fff1f2; }
+.studio-ui .bg-indigo-600 { background-color: var(--studio-primary); }
+.studio-ui .bg-indigo-50, .studio-ui .bg-indigo-100 { background-color: var(--studio-tint); }
+.studio-ui .text-indigo-600, .studio-ui .text-indigo-700, .studio-ui .eyebrow { color: var(--studio-deep); }
+.studio-ui .accent-indigo-600 { accent-color: var(--studio-primary); }
+.studio-ui [class~="hover:bg-indigo-700"]:hover { background-color: var(--studio-deep); }
+.studio-ui progress::-webkit-progress-value { background: var(--studio-primary); }
+.studio-ui progress::-moz-progress-bar { background: var(--studio-primary); }
+.studio-ui[data-density="compact"] main { padding-top: 20px; padding-bottom: 20px; }
+.timeline-clip { position: absolute; top: 5px; height: 86px; min-width: 2px; overflow: hidden; border: 1px solid #d4d4d8; border-radius: 4px; background: #fafafa; }
+.timeline-clip.is-selected { border: 2px solid var(--studio-primary); box-shadow: 0 0 0 1px var(--studio-primary); }
+.timeline-audio { position: absolute; top: 6px; height: 51px; min-width: 2px; overflow: hidden; border: 1px solid #67e8f9; border-radius: 4px; background: #ecfeff; }
+.timeline-audio.is-selected { border: 2px solid #0891b2; }
+.timeline-audio.is-muted { opacity: 0.55; }
+.timeline-handle { position: absolute; top: 0; bottom: 0; z-index: 3; width: 12px; display: flex; align-items: center; justify-content: center; background: #ffffffb3; cursor: ew-resize; touch-action: none; }
+.timeline-handle span { width: 2px; height: 18px; border-radius: 1px; background: #71717a; }
+.timeline-handle:focus-visible { outline-offset: -2px; }
+.studio-ui[data-motion="reduce"] *, .studio-ui[data-motion="reduce"] *::before, .studio-ui[data-motion="reduce"] *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/layout/AppShell";
+import { currentUser } from "@/lib/account/session";
+import { publicAccount } from "@/lib/account/database";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,18 +16,21 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EdifyCut",
-  description: "Editez et preparez vos videos d'enseignement pour le partage.",
+  title: { default: "EdifyCut · Votre studio vidéo", template: "%s · EdifyCut" },
+  description: "Importez vos vidéos, découpez l'essentiel et exportez un MP4 prêt à partager. Votre studio vidéo, directement dans le navigateur.",
+  icons: { icon: "/edifycut-logo.svg" },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const user = await currentUser();
   return (
     <html
       lang="fr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-stone-50 text-stone-950">
-        <AppShell>{children}</AppShell>
+      <body className="min-h-full text-zinc-950">
+        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:bg-white focus:p-3">Aller au contenu</a>
+        <AppShell user={user ? publicAccount(user) : null}>{children}</AppShell>
       </body>
     </html>
   );

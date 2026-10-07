@@ -1,60 +1,23 @@
+"use client";
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
-import { Upload, Video } from "lucide-react";
-import { demoProjects } from "@/lib/video/demo-projects";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { ProjectCard } from "./ProjectCard";
-
-export function HomeDashboard() {
-  return (
-    <div className="mx-auto max-w-7xl space-y-8">
-      <section className="grid gap-6 lg:grid-cols-[1.12fr_0.88fr] lg:items-stretch">
-        <div className="flex min-h-[360px] flex-col justify-center rounded-lg border border-stone-200 bg-white p-6 shadow-sm sm:p-8 lg:p-10">
-          <div className="mb-5 flex size-12 items-center justify-center rounded-lg bg-amber-100 text-amber-800">
-            <Video size={24} />
-          </div>
-          <h1 className="max-w-3xl text-3xl font-bold tracking-tight text-stone-950 sm:text-4xl lg:text-5xl">
-            Transformez vos enseignements en quelques minutes.
-          </h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-stone-600 sm:text-lg">
-            Coupez, accelerez, compressez et preparez vos videos pour les partager facilement.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link href="/editor">
-              <Button className="w-full sm:w-auto">
-                <Upload size={18} /> Importer une video
-              </Button>
-            </Link>
-          </div>
-        </div>
-
-        <Link href="/editor" className="block">
-          <Card className="flex min-h-[360px] flex-col items-center justify-center border-dashed bg-stone-100/70 p-6 text-center transition hover:border-amber-400 hover:bg-amber-50/60">
-            <div className="flex size-16 items-center justify-center rounded-full bg-white text-amber-800 shadow-sm">
-              <Upload size={28} />
-            </div>
-            <h2 className="mt-6 text-xl font-bold">Deposez votre video ici</h2>
-            <p className="mt-2 text-sm text-stone-500">MP4, MOV, WebM - jusqu&apos;a 2 Go</p>
-          </Card>
-        </Link>
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight">Projets recents</h2>
-            <p className="text-sm text-stone-500">Donnees de demonstration pour visualiser le dashboard.</p>
-          </div>
-          <Link href="/videos" className="text-sm font-semibold text-amber-800 hover:text-amber-900">
-            Voir mes videos
-          </Link>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {demoProjects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
-        </div>
-      </section>
-    </div>
-  );
+import Image from "next/image";
+import { ArrowRight, Video, Radio, AudioLines, Film, UserPlus, FolderOpen } from "lucide-react";
+import { studioSnapshot, parseStudio, subscribeStudio } from "@/lib/studio-preferences";
+import { projectSnapshot, parseProjects, subscribeProjects } from "@/lib/projects";
+const workspaces = [
+  { href: "/editor", label: "Éditeur vidéo", icon: Video, color: "text-indigo-600" },
+  { href: "/merge", label: "Montage photo & vidéo", icon: Film, color: "text-cyan-700" },
+  { href: "/audio", label: "Atelier audio", icon: AudioLines, color: "text-emerald-700" },
+  { href: "/live", label: "Live Capture", icon: Radio, color: "text-red-600" },
+];
+export function HomeDashboard({ loggedIn = false }: { loggedIn?: boolean }) {
+  const preferences = parseStudio(useSyncExternalStore(subscribeStudio, studioSnapshot, () => null));
+  const projects = parseProjects(useSyncExternalStore(subscribeProjects, projectSnapshot, () => null)).slice(0, 4);
+  return <div className="mx-auto max-w-6xl space-y-6">
+    <div className="flex flex-wrap items-center justify-between gap-3"><p className="eyebrow">MON STUDIO</p>{!loggedIn && <div className="flex flex-wrap items-center gap-4 text-sm"><Link href="/account" className="font-medium text-zinc-600">Se connecter</Link><Link href="/account?mode=register" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-indigo-200 bg-white px-3 font-semibold text-indigo-700"><UserPlus size={17} />Créer un compte</Link></div>}</div>
+    {preferences.showBanner ? <section className="relative h-48 overflow-hidden bg-indigo-950 sm:h-60"><Image src="/edifycut-studio-banner.png" alt="Studio EdifyCut avec écran de montage, microphone et caméra" fill priority sizes="(min-width: 1024px) 1100px, 100vw" className="object-cover object-[25%_center] sm:object-center" /><div className="absolute inset-y-0 left-0 flex w-[60%] flex-col justify-center gap-3 px-4 sm:w-[46%] sm:px-8"><p className="text-xs font-medium text-cyan-200">VIDÉO · PHOTO · AUDIO</p><h1 className="break-words text-2xl font-semibold text-white sm:text-3xl">EdifyCut Studio</h1></div></section> : <h1 className="text-3xl font-semibold">EdifyCut Studio</h1>}
+    <section><h2 className="text-lg font-semibold">Espaces de travail</h2><nav className="mt-3 grid gap-x-6 sm:grid-cols-2" aria-label="Créer dans le studio">{workspaces.map(item => <Link key={item.href} href={item.href} className="flex min-h-16 items-center gap-3 border-b border-zinc-200 px-1 py-3 text-sm font-medium hover:bg-white"><item.icon size={21} className={item.color} /><span className="min-w-0 flex-1">{item.label}</span><ArrowRight size={17} className="shrink-0 text-zinc-400" /></Link>)}</nav></section>
+    <section className="border-t border-zinc-200 pt-5"><div className="flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Projets récents</h2><Link href="/videos" className="text-sm font-medium text-indigo-700">Tous les projets</Link></div>{projects.length ? <div className="mt-4 divide-y divide-zinc-200">{projects.map(project => <Link key={project.id} href={`${project.kind === "montage" ? "/merge" : "/editor"}?project=${encodeURIComponent(project.id)}`} className="flex items-center gap-3 py-4"><span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-white text-indigo-600">{project.kind === "montage" ? <Film size={19} /> : <Video size={19} />}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{project.name}</span><span className="mt-1 block text-xs text-zinc-500">{new Date(project.updatedAt).toLocaleDateString("fr-FR")} · {project.kind === "montage" ? "Montage" : "Extrait vidéo"}</span></span><ArrowRight size={17} className="shrink-0 text-zinc-400" /></Link>)}</div> : <div className="mt-5 flex items-center gap-3 py-3 text-sm text-zinc-500"><FolderOpen size={24} className="shrink-0 text-zinc-400" />Aucun projet enregistré sur cet appareil.</div>}</section>
+  </div>;
 }

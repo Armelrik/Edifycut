@@ -1,0 +1,26 @@
+import { InfoPage } from "@/components/layout/InfoPage";
+export const metadata = { title: "Confidentialité" };
+export default function PrivacyPage() {
+  return <InfoPage title="Confidentialité" description="Ce que cette installation EdifyCut conserve et ce qui reste sur votre appareil.">
+    <h2>Les fichiers vidéo et audio locaux</h2>
+    <p>Les prises au microphone nécessitent votre autorisation explicite. Elles sont enregistrées et converties localement dans le navigateur, sans envoi automatique au serveur. L&apos;accès au microphone est libéré à la fin de la prise ou lorsque vous quittez l&apos;atelier audio.</p>
+    <p>Les vidéos et fichiers audio importés depuis votre appareil sont traités dans votre navigateur, sans envoi automatique au serveur. Le fichier original n&apos;est jamais modifié : chaque export crée un nouveau fichier. Les copies temporaires en mémoire sont libérées après le traitement ou son annulation.</p>
+    <h2>Imports YouTube</h2>
+    <p>Les imports YouTube passent par des fichiers temporaires sur le serveur, supprimés après le transfert, une erreur ou une annulation. Un arrêt brutal peut laisser des fichiers à nettoyer. Les imports contactent YouTube et ses services de diffusion ; les miniatures peuvent être chargées depuis leurs serveurs.</p>
+    <h2>Enregistrements Live Capture</h2>
+    <p>Les captures de directs sont enregistrées sur le serveur, par fragments, avec les fichiers MP4 assemblés. Le compte associé, le lien du direct, son titre, les dates et l&apos;état de capture sont conservés pour retrouver la session. Les téléchargements sont réservés au compte propriétaire ; la personne qui administre le serveur peut accéder aux fichiers sur disque.</p>
+    <p>Vous pouvez supprimer une capture et ses fichiers depuis Live Capture. Les captures inactives depuis plus de 24 heures sont supprimées lors du prochain accès au service. La suppression est différée si le serveur est arrêté. Une capture est limitée à 6 heures et 4 Go de fragments, hors copie assemblée. Le serveur doit rester disponible ; les périodes en pause ne sont pas enregistrées et ne sont pas récupérées à la reprise.</p>
+    <h2>Avertissement sur la gestion des vidéos</h2>
+    <p>Importez, enregistrez, modifiez et partagez uniquement des contenus pour lesquels vous disposez des droits ou autorisations nécessaires, y compris concernant les personnes filmées et les contenus audio. L&apos;accès public à une vidéo ou à un direct ne constitue pas, à lui seul, une autorisation de téléchargement ou de redistribution. Respectez les conditions de la plateforme source.</p>
+    <p>EdifyCut ne vérifie pas ces autorisations et ne contourne pas les restrictions d&apos;accès. Il ne constitue ni un service d&apos;archivage ni une sauvegarde. Une interruption réseau, une fermeture du navigateur, un arrêt du serveur ou une limite de stockage peut interrompre un traitement ou une capture. Conservez vos originaux, téléchargez les exports utiles et vérifiez le résultat avant de supprimer vos fichiers. Les fichiers téléchargés sur votre appareil ne sont pas effacés par la suppression de la capture sur le serveur.</p>
+    <h2>Partage</h2>
+    <p>Lorsque le navigateur le permet, le sélecteur du système vous laisse choisir WhatsApp ou une autre application destinataire. Le contenu transmis est ensuite soumis au fonctionnement et aux règles de cette application. Si le partage est indisponible, le fichier est proposé en téléchargement.</p>
+    <h2>Les comptes</h2>
+    <p>L&apos;installation conserve votre nom, votre adresse e-mail, un hachage du mot de passe, votre rôle, l&apos;état du compte et sa date de création dans une base SQLite. Les administrateurs peuvent gérer les rôles, désactiver des comptes et réinitialiser les mots de passe. Le mot de passe d&apos;origine ne leur est pas accessible.</p>
+    <h2>Cookies et préférences</h2>
+    <p>Les projets de montage et d&apos;extraits sont conservés dans le stockage local de cet appareil : nom du projet, noms et caractéristiques des fichiers, coupes, effets, ordre des médias, transitions et options d&apos;export. Les vidéos, photos et fichiers audio eux-mêmes ne sont pas sauvegardés dans cette bibliothèque. Il faut resélectionner les originaux pour reprendre un projet. Ces réglages ne sont pas synchronisés avec le compte ; une autre personne utilisant le même navigateur peut y accéder. Supprimer un projet ou effacer les données du navigateur supprime les réglages concernés.</p>
+    <p>Un cookie de session chiffré maintient la connexion pendant au plus sept jours. Les préférences d&apos;export sont conservées dans le stockage local du navigateur. Cette version ne comporte pas de mesure d&apos;audience ni de cookies publicitaires.</p>
+    <h2>Journaux et gestion des données</h2>
+    <p>Les journaux techniques peuvent contenir des erreurs et des URL de vidéos. Vous pouvez modifier votre nom et votre mot de passe depuis votre compte. Pour demander la suppression d&apos;un compte ou de données techniques, contactez la personne qui administre cette installation. Un hébergement public nécessitera les coordonnées et les durées de conservation de son exploitant.</p>
+  </InfoPage>;
+}

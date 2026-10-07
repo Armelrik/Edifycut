@@ -16,8 +16,8 @@ export function SpeedSelector({ value, onChange }: { value: number; onChange: (s
             className={cn(
               "h-11 rounded-md border text-sm font-semibold transition sm:h-10",
               value === speed
-                ? "border-amber-700 bg-amber-700 text-white shadow-sm"
-                : "border-stone-200 bg-white text-stone-700 hover:bg-stone-100",
+                ? "border-indigo-700 bg-indigo-700 text-white shadow-sm"
+                : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100",
             )}
           >
             {speed}x

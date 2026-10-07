@@ -2,7 +2,10 @@
 
 # dependencies
 /node_modules
+/.tools
+/.data
 /.pnp
+.data
 .pnp.*
 .yarn/*
 !.yarn/patches

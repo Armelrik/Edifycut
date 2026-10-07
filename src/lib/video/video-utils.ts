@@ -1,4 +1,5 @@
 import { EditorSettings, ExportQuality, VideoMetadata } from "@/types/video";
+import { retainedSegments } from "./editing";
 
 const qualityPixels: Record<ExportQuality, number> = {
   original: 1,
@@ -19,7 +20,7 @@ export function formatFileSize(bytes: number) {
 
 export function getEstimatedDuration(metadata: Pick<VideoMetadata, "duration"> | null, settings: EditorSettings) {
   if (!metadata) return 0;
-  const retained = Math.max(0, metadata.duration - settings.trimStart - settings.trimEnd);
+  const retained = retainedSegments(metadata.duration, settings).reduce((sum, segment) => sum + segment.end - segment.start, 0);
   return retained / settings.speed;
 }
 
@@ -30,7 +31,7 @@ export function estimateExportSize(metadata: VideoMetadata | null, settings: Edi
   const qualityRatio = settings.quality === "original" ? 1 : Math.min(1, qualityPixels[settings.quality] / sourcePixels);
   const compressionRatio = settings.optimizeForWhatsApp ? 0.42 : settings.quality === "480p" ? 0.48 : 0.68;
 
-  return Math.max(1024 * 1024, metadata.size * durationRatio * qualityRatio * compressionRatio);
+  return Math.max(1024, metadata.size * durationRatio * qualityRatio * compressionRatio);
 }
 
 export function getResolutionLabel(metadata: VideoMetadata | null, quality: ExportQuality) {
@@ -54,19 +55,33 @@ export function readVideoMetadata(file: File): Promise<VideoMetadata> {
     const objectUrl = URL.createObjectURL(file);
     const video = document.createElement("video");
     video.preload = "metadata";
+    const releaseVideo = () => {
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.removeAttribute("src");
+      video.load();
+    };
 
     video.onloadedmetadata = () => {
-      resolve({
+      const details = {
         name: file.name,
         size: file.size,
-        duration: video.duration || 0,
-        width: video.videoWidth || 0,
-        height: video.videoHeight || 0,
+        duration: video.duration,
+        width: video.videoWidth,
+        height: video.videoHeight,
         objectUrl,
-      });
+      };
+      releaseVideo();
+      if (!Number.isFinite(details.duration) || details.duration <= 0) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("La durée de cette vidéo est indéterminée. Utilisez un fichier vidéo finalisé."));
+        return;
+      }
+      resolve(details);
     };
 
     video.onerror = () => {
+      releaseVideo();
       URL.revokeObjectURL(objectUrl);
       reject(new Error("Impossible de lire cette video. Elle est peut-etre corrompue."));
     };

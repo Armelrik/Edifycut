@@ -1,7 +1,5 @@
 export type ExportQuality = "original" | "1080p" | "720p" | "480p";
 
-export type ProjectStatus = "Demo" | "Brouillon" | "Pret" | "Export";
-
 export type VideoPresetId = "original" | "fast" | "whatsapp" | "compact";
 
 export type ExportStage =
@@ -13,16 +11,6 @@ export type ExportStage =
   | "finalizing"
   | "done"
   | "error";
-
-export interface DemoProject {
-  id: string;
-  title: string;
-  duration: number;
-  modifiedAt: string;
-  size: string;
-  status: ProjectStatus;
-  accent: string;
-}
 
 export interface VideoMetadata {
   name: string;
@@ -39,6 +27,33 @@ export interface EditorSettings {
   trimEnd: number;
   quality: ExportQuality;
   optimizeForWhatsApp: boolean;
+  effects?: VideoEffects;
+  cuts?: VideoCut[];
+}
+
+export interface VideoEffects {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  volume: number;
+  fadeIn: number;
+  fadeOut: number;
+}
+
+export interface VideoCut {
+  id: string;
+  start: number;
+  end: number;
+  enabled: boolean;
+  source: "manual" | "silence";
+}
+
+export interface SilenceOptions {
+  threshold: number;
+  minDuration: number;
+  padding: number;
+  start?: number;
+  end?: number;
 }
 
 export interface ExportResult {

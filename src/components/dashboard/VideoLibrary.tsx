@@ -1,47 +1,18 @@
-import { Download, Edit3, Trash2 } from "lucide-react";
-import { demoProjects } from "@/lib/video/demo-projects";
-import { formatDuration } from "@/lib/video/duration";
+"use client";
+import Link from "next/link";
+import { useState, useSyncExternalStore } from "react";
+import { FolderOpen, Upload, Film, Video, Trash2, Download, Pencil } from "lucide-react";
+import { projectSnapshot, parseProjects, subscribeProjects, saveProject, deleteProject, type StudioProject } from "@/lib/projects";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-
 export function VideoLibrary() {
-  return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Mes videos</h1>
-        <p className="mt-2 text-stone-600">Projets locaux et exemples de demonstration.</p>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        {demoProjects.map((project) => (
-          <Card key={project.id} className="overflow-hidden">
-            <div className={`aspect-video bg-gradient-to-br ${project.accent}`} />
-            <div className="space-y-4 p-4">
-              <div>
-                <h2 className="font-semibold">{project.title}</h2>
-                <p className="text-sm text-stone-500">{project.modifiedAt}</p>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-sm">
-                <span>{formatDuration(project.duration)}</span>
-                <span>{project.size}</span>
-                <span>{project.status}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary">Ouvrir</Button>
-                <Button variant="secondary">
-                  <Edit3 size={15} /> Renommer
-                </Button>
-                <Button variant="secondary">
-                  <Download size={15} /> Exporter
-                </Button>
-                <Button variant="ghost" className="text-red-700">
-                  <Trash2 size={15} /> Supprimer
-                </Button>
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
+  const raw = useSyncExternalStore(subscribeProjects, projectSnapshot, () => null), projects = parseProjects(raw);
+  const [error, setError] = useState("");
+  function rename(project: StudioProject) { const name = window.prompt("Nom du projet", project.name); if (!name?.trim()) return; try { saveProject({ ...project, name: name.trim().slice(0, 100) }); } catch { setError("Impossible de renommer le projet."); } }
+  function exportConfig(project: StudioProject) { const url = URL.createObjectURL(new Blob([JSON.stringify(project, null, 2)], { type: "application/json" })); const link = document.createElement("a"); link.href = url; link.download = `edifycut-projet-${project.id}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+  return <div className="mx-auto max-w-6xl space-y-7"><div><p className="eyebrow">VOTRE CONTENU</p><h1 className="mt-3 text-3xl font-semibold">Mes vidéos & projets</h1></div>
+    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    <div className="flex flex-wrap gap-3"><Link href="/editor" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white"><Upload size={18} />Nouveau projet vidéo</Link><Link href="/merge" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-zinc-200 bg-white px-4 text-sm font-medium"><Film size={18} />Nouveau montage</Link></div>
+    {!projects.length ? <section className="flex min-h-64 flex-col items-center justify-center border-y border-zinc-200 py-10 text-center"><FolderOpen size={40} className="text-indigo-400" /><h2 className="mt-4 text-lg font-semibold">Aucun projet enregistré</h2></section> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{projects.map(project => <article key={project.id} className="min-w-0 rounded-md border border-zinc-200 bg-white p-5"><div className="flex items-center gap-2 text-xs font-medium text-indigo-700">{project.kind === "montage" ? <Film size={17} /> : <Video size={17} />}{project.kind === "montage" ? `Montage · ${project.clips.length} médias` : "Extrait vidéo"}</div><h2 className="mt-4 break-words font-semibold">{project.name}</h2><p className="mt-2 text-xs text-zinc-500">{new Date(project.updatedAt).toLocaleString("fr-FR")}</p><Link href={`${project.kind === "montage" ? "/merge" : "/editor"}?project=${encodeURIComponent(project.id)}`} className="mt-5 inline-flex min-h-11 items-center text-sm font-semibold text-indigo-700">Reprendre le projet</Link><div className="mt-3 flex gap-1 border-t border-zinc-100 pt-2"><Button variant="ghost" title="Renommer" aria-label={`Renommer ${project.name}`} onClick={() => rename(project)}><Pencil size={16} /></Button><Button variant="ghost" title="Exporter les réglages" aria-label={`Exporter les réglages de ${project.name}`} onClick={() => exportConfig(project)}><Download size={16} /></Button><Button variant="ghost" title="Supprimer le projet" aria-label={`Supprimer ${project.name}`} onClick={() => { if (window.confirm("Supprimer uniquement les réglages de ce projet ?")) { try { deleteProject(project.id); } catch { setError("Impossible de supprimer le projet."); } } }}><Trash2 size={16} /></Button></div></article>)}</div>}
+    <p className="text-xs leading-5 text-zinc-500">Seuls les réglages et les références des médias sont enregistrés sur cet appareil, pas les vidéos ni les photos. Pour reprendre un projet, resélectionnez ses fichiers originaux. Effacer les données du navigateur efface aussi ces projets.</p>
+  </div>;
 }

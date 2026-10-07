@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Upload, Play, Pause, Download, Share2, Trash2, ArrowLeft, ArrowRight, Undo2, Redo2, Save, X, Film, AudioLines, Scissors, Volume2, VolumeX, SkipBack, SkipForward } from "lucide-react";
+import { Upload, Play, Pause, Download, Share2, Trash2, ArrowLeft, ArrowRight, Undo2, Redo2, Save, X, Film, AudioLines, Scissors, Volume2, VolumeX, SkipBack, SkipForward, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MontageProcessor } from "@/lib/video/montage-processor";
 import { readVideoMetadata } from "@/lib/video/video-utils";
@@ -15,6 +15,7 @@ import { Waveform } from "./Waveform";
 import { saveProject, projectSnapshot, parseProjects, subscribeProjects, reference, matches, type StudioProject } from "@/lib/projects";
 import { clipDuration, montageTimeline, defaultMontage, audioGain as trackGain, audioDuration, type MontageClip, type MontageSettings, type MontageAudioClip, type MontageResource as Resource } from "@/types/montage";
 type MontageProject = Extract<StudioProject, { kind: "montage" }>;
+type LibraryItem = { id: string; kind: "video" | "photo" | "audio"; sourceDuration: number; resource: Resource };
 const transitions = [{ value: "none", label: "Coupe directe" }, { value: "fade", label: "Fondu enchaîné" }, { value: "wipeleft", label: "Balayage" }, { value: "slideleft", label: "Glissement" }];
 export function MontageWorkspace({ projectId }: { projectId?: string }) {
   const raw = useSyncExternalStore(subscribeProjects, projectSnapshot, () => null);
@@ -56,6 +57,7 @@ function MontageStudio({ initial }: { initial?: MontageProject }) {
   const [name, setName] = useState(initial?.name || "Mon montage");
   const [inspectorTab, setInspectorTab] = useState<"selection" | "mix" | "export">("selection");
   const [resources, setResources] = useState<Map<string, Resource>>(new Map());
+  const [library, setLibrary] = useState<LibraryItem[]>([]);
   const [selected, setSelected] = useState(initial?.clips[0]?.id || "");
   const [time, setTime] = useState(0), [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState(false), [importing, setImporting] = useState(false);
@@ -72,7 +74,7 @@ function MontageStudio({ initial }: { initial?: MontageProject }) {
   const dirty = useRef(false);
   const playhead = useRef(0);
   useEffect(() => { playhead.current = time; }, [time]);
-  useEffect(() => { alive.current = true; const allocatedUrls = urls.current, projectCache = pending.current; return () => { alive.current = false; worker.current?.terminate(); waveformWorker.current?.terminate(); allocatedUrls.forEach(url => URL.revokeObjectURL(url)); if (readStudio().autosave && projectCache.latest) { try { saveProject(projectCache.latest); } catch { /* Explicit saving still reports storage errors in the studio. */ } } }; }, []);
+  useEffect(() => { alive.current = true; const allocatedUrls = urls.current, projectCache = pending.current; return () => { alive.current = false; worker.current?.terminate(); waveformWorker.current?.terminate(); mixer.dispose(); allocatedUrls.forEach(url => URL.revokeObjectURL(url)); if (readStudio().autosave && projectCache.latest) { try { saveProject(projectCache.latest); } catch { /* Explicit saving still reports storage errors in the studio. */ } } }; }, [mixer]);
   useEffect(() => () => { if (result) URL.revokeObjectURL(result.url); }, [result]);
   const timeline = montageTimeline(clips), duration = timeline.at(-1)?.end || 0;
   const tracks = settings.audioTracks || [];
@@ -109,65 +111,82 @@ function MontageStudio({ initial }: { initial?: MontageProject }) {
     if (![...snapshot.clips, ...(snapshot.settings.audioTracks || [])].some(item => item.id === selected)) setSelected(snapshot.clips[0]?.id || snapshot.settings.audioTracks?.[0]?.id || "");
   }
   function move(from: string, to: string) { if (from === to) return; remember(); setClips(previous => { const list = [...previous]; const index = list.findIndex(clip => clip.id === from), target = list.findIndex(clip => clip.id === to); if (index < 0 || target < 0) return list; const [clip] = list.splice(index, 1); list.splice(target, 0, clip); return list; }); }
+  function placeMedia(mediaId: string, position = duration, lane?: "visual" | "audio") {
+    if (busy || importing) return;
+    const item = library.find(item => item.id === mediaId); if (!item) return;
+    const isAudio = item.kind === "audio";
+    if (lane && (isAudio ? lane !== "audio" : lane !== "visual")) { setError("Déposez ce média sur la piste correspondante."); return; }
+    if (isAudio && tracks.length >= 4 || !isAudio && clips.length >= 12) { setError(isAudio ? "Maximum 4 pistes audio par montage." : "Maximum 12 médias visuels par montage."); return; }
+    setError(""); remember(); const newId = crypto.randomUUID();
+    setResources(previous => new Map(previous).set(newId, item.resource));
+    if (isAudio) {
+      const offset = Math.round(Math.max(0, Math.min(position, Math.max(0, duration - 0.1))) * 30) / 30;
+      const track: MontageAudioClip = { id: newId, media: reference(item.resource.file), sourceDuration: item.sourceDuration, start: 0, end: item.sourceDuration, offset, volume: 0.7, fadeIn: 0.2, fadeOut: 0.3, muted: false };
+      setSettings(previous => ({ ...previous, audioTracks: [...(previous.audioTracks || []), track] }));
+      setTime(offset);
+    } else {
+      const clip: MontageClip = { id: newId, media: reference(item.resource.file), kind: item.kind as "video" | "photo", sourceDuration: item.sourceDuration, start: 0, end: item.sourceDuration, volume: 1, transition: readStudio().transition, transitionDuration: 0.5 };
+      const insertion = timeline.findIndex(entry => position < (entry.start + entry.end) / 2);
+      setClips(previous => { const copy = [...previous]; copy.splice(insertion < 0 ? copy.length : insertion, 0, clip); return copy; });
+      setTime(insertion < 0 ? duration : timeline[insertion].start);
+    }
+    setSelected(newId); setInspectorTab("selection");
+  }
   async function importFiles(list: FileList | File[]) {
+    if (busy || importing) return;
     setError(""); setImporting(true); setPlaying(false);
-    const added: MontageClip[] = [], addedAudio: MontageAudioClip[] = [], newResources = new Map(resources), allocated = new Set<string>();
+    const newResources = new Map(resources), newLibrary = [...library], allocated = new Set<string>(), failures: string[] = [];
     const own = (url: string) => { urls.current.add(url); allocated.add(url); };
     try {
-      const unique = new Set([...newResources.values()].map(resource => resource.file));
-      for (const file of Array.from(list)) unique.add(file);
-      if ([...unique].reduce((sum, file) => sum + file.size, 0) > 512 * 1024 ** 2) throw new Error("Limitez les fichiers du montage à 512 Mo au total.");
       for (const file of Array.from(list)) {
-        const references = [...clips, ...tracks];
-        const missing = references.find(item => !newResources.has(item.id) && matches(file, item.media));
-        const isAudio = missing ? !("kind" in missing) : file.type.startsWith("audio/") || /\.(mp3|m4a|wav|aac|ogg|flac)$/i.test(file.name);
-        const photo = !isAudio && (file.type.startsWith("image/") || /\.(png|jpe?g|webp)$/i.test(file.name));
-        if (!missing && isAudio && tracks.length + addedAudio.length >= 4) throw new Error("Maximum 4 pistes audio par montage.");
-        if (!missing && !isAudio && clips.length + added.length >= 12) throw new Error("Maximum 12 médias visuels par montage.");
-        let url: string, sourceDuration: number, thumbnail: string | undefined, waveform: number[] | undefined;
-        if (isAudio) {
-          if (file.size > 64 * 1024 ** 2) throw new Error("Limitez chaque piste audio à 64 Mo.");
-          const metadata = await readAudio(file); url = metadata.objectUrl; sourceDuration = metadata.duration;
-          own(url);
-          if (sourceDuration > 1800) throw new Error("Limitez chaque piste audio à 30 minutes.");
-          setStatus("Analyse de la forme d'onde audio…");
-          const analyzer = new WaveformProcessor(); waveformWorker.current = analyzer;
-          waveform = await analyzer.analyze(file); waveformWorker.current = null;
-        } else if (photo) {
-          if (!/\.(png|jpe?g|webp)$/i.test(file.name)) throw new Error("Photos compatibles : JPG, PNG et WebP.");
-          const bitmap = await createImageBitmap(file); const tooLarge = bitmap.width * bitmap.height > 32_000_000; bitmap.close();
-          if (tooLarge) throw new Error("Réduisez cette photo à moins de 32 mégapixels.");
-          url = URL.createObjectURL(file); sourceDuration = readStudio().photoDuration; thumbnail = url;
-        } else {
-          const metadata = await readVideoMetadata(file); url = metadata.objectUrl; sourceDuration = metadata.duration; own(url);
-          const blob = await videoThumbnail(url, sourceDuration);
-          if (blob) { thumbnail = URL.createObjectURL(blob); own(thumbnail); }
-        }
-        if (!alive.current) { URL.revokeObjectURL(url); if (thumbnail) URL.revokeObjectURL(thumbnail); return; }
-        own(url);
-        const resource = { file, url, thumbnail, waveform };
-        if (missing) {
-          for (const item of references.filter(item => matches(file, item.media))) newResources.set(item.id, resource);
-        } else if (isAudio) {
-          const track: MontageAudioClip = { id: crypto.randomUUID(), media: reference(file), sourceDuration, start: 0, end: sourceDuration, offset: Math.min(time, Math.max(0, duration - 0.1)), volume: 0.7, fadeIn: 0.2, fadeOut: 0.3, muted: false };
-          addedAudio.push(track); newResources.set(track.id, resource);
-        } else {
-          const clip: MontageClip = { id: crypto.randomUUID(), media: reference(file), kind: photo ? "photo" : "video", sourceDuration, start: 0, end: sourceDuration, volume: 1, transition: readStudio().transition, transitionDuration: 0.5 };
-          added.push(clip); newResources.set(clip.id, resource);
-        }
+        if (!alive.current) break;
+        try {
+          const existing = newLibrary.find(item => matches(file, reference(item.resource.file)));
+          if (existing) {
+            for (const item of [...clips, ...tracks].filter(item => matches(file, item.media))) newResources.set(item.id, existing.resource);
+            continue;
+          }
+          if (newLibrary.length >= 40) throw new Error("Maximum 40 fichiers dans la médiathèque.");
+          const unique = new Set([...newResources.values(), ...newLibrary.map(item => item.resource)].map(resource => resource.file)); unique.add(file);
+          if ([...unique].reduce((sum, file) => sum + file.size, 0) > 512 * 1024 ** 2) throw new Error("Limitez les fichiers du montage à 512 Mo au total.");
+          const missing = [...clips, ...tracks].find(item => matches(file, item.media));
+          const isAudio = missing ? !("kind" in missing) : file.type.startsWith("audio/") || /\.(mp3|m4a|wav|aac|ogg|flac)$/i.test(file.name);
+          const photo = !isAudio && (file.type.startsWith("image/") || /\.(png|jpe?g|webp)$/i.test(file.name));
+          let url: string, sourceDuration: number, thumbnail: string | undefined, waveform: number[] | undefined;
+          setStatus(`Import de ${file.name}…`);
+          if (isAudio) {
+            if (file.size > 64 * 1024 ** 2) throw new Error("Limitez chaque piste audio à 64 Mo.");
+            const metadata = await readAudio(file); url = metadata.objectUrl; sourceDuration = metadata.duration; own(url);
+            if (sourceDuration > 1800) throw new Error("Limitez chaque piste audio à 30 minutes.");
+            const analyzer = new WaveformProcessor(); waveformWorker.current = analyzer;
+            try { waveform = await analyzer.analyze(file); }
+            catch { if (alive.current) failures.push(`${file.name} : importé sans forme d'onde (analyse indisponible).`); }
+            finally { analyzer.terminate(); waveformWorker.current = null; }
+          } else if (photo) {
+            if (!/\.(png|jpe?g|webp)$/i.test(file.name)) throw new Error("Photos compatibles : JPG, PNG et WebP.");
+            url = URL.createObjectURL(file); own(url);
+            const image = document.createElement("img"); image.src = url; await image.decode();
+            if (!image.naturalWidth || image.naturalWidth * image.naturalHeight > 32_000_000) throw new Error("Photo invalide ou supérieure à 32 mégapixels.");
+            sourceDuration = readStudio().photoDuration; thumbnail = url;
+          } else {
+            const metadata = await readVideoMetadata(file); url = metadata.objectUrl; sourceDuration = metadata.duration; own(url);
+            const blob = await videoThumbnail(url, sourceDuration);
+            if (blob) { thumbnail = URL.createObjectURL(blob); own(thumbnail); }
+          }
+          if (!alive.current) break;
+          const resource = { file, url, thumbnail, waveform }, libraryId = crypto.randomUUID();
+          newLibrary.push({ id: libraryId, kind: isAudio ? "audio" : photo ? "photo" : "video", sourceDuration, resource });
+          newResources.set(libraryId, resource);
+          for (const item of [...clips, ...tracks].filter(item => matches(file, item.media))) newResources.set(item.id, resource);
+        } catch (error) { failures.push(`${file.name} : ${(error as Error).message}`); }
       }
-    } catch (error) { if (alive.current) setError((error as Error).message); }
-    finally {
-      waveformWorker.current = null;
+    } finally {
       const retained = new Set([...newResources.values()].flatMap(resource => [resource.url, resource.thumbnail]));
       for (const url of allocated) if (!alive.current || !retained.has(url)) { URL.revokeObjectURL(url); urls.current.delete(url); }
       if (alive.current) {
-        if (added.length || addedAudio.length) {
-          remember(); setClips(previous => [...previous, ...added]);
-          if (addedAudio.length) setSettings(previous => ({ ...previous, audioTracks: [...(previous.audioTracks || []), ...addedAudio] }));
-          setSelected(addedAudio[0]?.id || added[0]?.id || "");
-        }
-        setResources(newResources); setImporting(false);
+        setLibrary(newLibrary); setResources(newResources); setImporting(false);
+        setStatus(`${newLibrary.length} média(s) dans la médiathèque.`);
+        if (failures.length) setError(failures.join(" "));
       }
     }
   }
@@ -220,7 +239,7 @@ function MontageStudio({ initial }: { initial?: MontageProject }) {
     if ((event.ctrlKey || event.metaKey) && key === "z") { event.preventDefault(); restore(event.shiftKey ? "redo" : "undo"); }
     else if ((event.ctrlKey || event.metaKey) && key === "b") { event.preventDefault(); split(); }
     else if (event.key === "Delete" && (current || currentAudio)) { event.preventDefault(); removeSelected(); }
-    else if (event.key === " " && (event.target as HTMLElement).tagName !== "BUTTON" && duration) { event.preventDefault(); if (time >= duration) setTime(0); setPlaying(!playing); }
+    else if (event.key === " " && (event.target as HTMLElement).tagName !== "BUTTON" && duration) { event.preventDefault(); if (time >= duration) setTime(0); if (!playing) void mixer.resume().catch(() => setError("Lecture audio indisponible.")); setPlaying(!playing); }
   }}>
     <header className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">STUDIO / MONTAGE</p><h1 className="mt-2 text-2xl font-semibold">Montage photo, vidéo & audio</h1></div><Button variant="secondary" disabled={locked || (!clips.length && !tracks.length)} onClick={() => { try { save(); setStatus("Projet enregistré."); } catch (error) { setError((error as Error).message); } }}><Save size={17} />Enregistrer</Button></header>
     <div className="flex flex-wrap items-center gap-3 border-y border-zinc-200 py-3">
@@ -229,6 +248,14 @@ function MontageStudio({ initial }: { initial?: MontageProject }) {
       <label className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 text-sm font-medium ${locked ? "pointer-events-none opacity-50" : ""}`}><AudioLines size={17} />Audio<input aria-label="Importer une piste audio" disabled={locked} type="file" multiple accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac" className="sr-only" onChange={event => { if (event.target.files) void importFiles(event.target.files); event.target.value = ""; }} /></label>
       <div className="flex items-center gap-1 sm:ml-auto"><Button variant="ghost" title="Annuler" aria-label="Annuler la modification" disabled={locked || !history.length} onClick={() => restore("undo")}><Undo2 size={17} /></Button><Button variant="ghost" title="Rétablir" aria-label="Rétablir la modification" disabled={locked || !redo.length} onClick={() => restore("redo")}><Redo2 size={17} /></Button><Button variant="ghost" title="Scinder à la tête de lecture" aria-label="Scinder ici" disabled={locked || !canSplit} onClick={split}><Scissors size={17} /></Button><Button variant="ghost" title="Supprimer la sélection" aria-label="Supprimer la sélection" disabled={locked || (!current && !currentAudio)} onClick={removeSelected}><Trash2 size={17} /></Button></div>
     </div>
+    <section aria-label="Médiathèque" className="min-w-0 border-b border-zinc-200 pb-4" onDragOver={event => { if (!locked && event.dataTransfer.types.includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }} onDrop={event => { if (event.dataTransfer.files.length) { event.preventDefault(); if (!locked) void importFiles(event.dataTransfer.files); } }}>
+      <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold">Médiathèque</h2><span className="text-xs text-zinc-500">{library.length} médias</span></div>
+      {!library.length && <div className="flex min-h-24 items-center justify-center border border-dashed border-zinc-300 text-sm text-zinc-500">{importing ? "Import en cours…" : "Aucun média importé"}</div>}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-6">{library.map(item => <article key={item.id} data-testid="library-media" draggable={!locked} onDragStart={event => { event.dataTransfer.setData("application/x-edifycut-media", item.id); event.dataTransfer.effectAllowed = "copy"; }} onDoubleClick={() => placeMedia(item.id, item.kind === "audio" ? displayTime : duration)} className="min-w-0 overflow-hidden rounded-md border border-zinc-200 bg-white">
+        <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-zinc-100">{item.resource.thumbnail ? <Image src={item.resource.thumbnail} alt={item.resource.file.name} fill unoptimized className="object-cover" /> : <AudioLines size={28} className="text-cyan-700" />}{item.kind === "audio" && <div className="absolute inset-x-1 bottom-1"><Waveform peaks={item.resource.waveform} start={0} end={item.sourceDuration} duration={item.sourceDuration} /></div>}</div>
+        <div className="flex min-w-0 items-center gap-1 p-2"><div className="min-w-0 flex-1"><p title={item.resource.file.name} className="truncate text-xs font-medium">{item.resource.file.name}</p><p className="text-[10px] text-zinc-500">{item.kind === "audio" ? "Audio" : item.kind === "photo" ? "Photo" : "Vidéo"} · {item.sourceDuration.toFixed(1)} s</p></div><Button variant="ghost" disabled={locked} title="Ajouter au montage" aria-label={`Ajouter ${item.resource.file.name} au montage`} onClick={() => placeMedia(item.id, item.kind === "audio" ? displayTime : duration)}><Plus size={17} /></Button></div>
+      </article>)}</div>
+    </section>
     {error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_288px]">
       <section className="order-1 min-w-0 space-y-3"><div className="flex items-center justify-between text-xs text-zinc-500"><span>Aperçu</span><span>{settings.aspect === "landscape" ? "16:9" : settings.aspect === "portrait" ? "9:16" : "1:1"} · {settings.resolution}</span></div>
@@ -240,11 +267,11 @@ function MontageStudio({ initial }: { initial?: MontageProject }) {
             const next = timeline[clips.indexOf(entry.clip) + 1], outgoingOverlap = next ? entry.end - next.start : 0;
             const gain = (entering ? ratio : outgoingOverlap > 0 && displayTime >= next!.start ? (entry.end - displayTime) / outgoingOverlap : 1) * (settings.originalVolume ?? 1);
             const style = entering && previous?.clip.transition === "wipeleft" ? { clipPath: `inset(0 0 0 ${100 - ratio * 100}%)` } : entering && previous?.clip.transition === "slideleft" ? { transform: `translateX(${(1 - ratio) * 100}%)` } : undefined;
-            return <MediaLayer key={entry.clip.id} clip={entry.clip} resource={resources.get(entry.clip.id)} localTime={displayTime - entry.start} playing={playing && time < duration} opacity={entering && previous?.clip.transition === "fade" ? ratio : 1} audioGain={gain} style={style} />;
+            return <MediaLayer key={entry.clip.id} clip={entry.clip} resource={resources.get(entry.clip.id)} localTime={displayTime - entry.start} playing={playing && time < duration} opacity={entering && previous?.clip.transition === "fade" ? ratio : 1} audioGain={gain} style={style} mixer={mixer} />;
           })}
         </div>
-        {tracks.map(track => <AudioLayer key={track.id} track={track} resource={resources.get(track.id)} time={displayTime} duration={duration} playing={playing && time < duration} />)}
-        <div className="flex items-center gap-1"><Button variant="ghost" title="Début du montage" aria-label="Début du montage" disabled={locked || !duration} onClick={() => { setTime(0); setPlaying(false); }}><SkipBack size={17} /></Button><Button variant="secondary" title={playing ? "Pause" : "Lire le montage"} aria-label={playing ? "Pause" : "Lire le montage"} disabled={locked || !duration} onClick={() => { if (time >= duration) setTime(0); setPlaying(!playing); }}>{playing ? <Pause size={18} /> : <Play size={18} />}</Button><Button variant="ghost" title="Fin du montage" aria-label="Fin du montage" disabled={locked || !duration} onClick={() => { setTime(duration); setPlaying(false); }}><SkipForward size={17} /></Button><input aria-label="Position dans le montage" type="range" disabled={locked || !duration} min="0" max={Math.max(0.1, duration)} step={1 / 30} value={displayTime} onChange={event => setTime(Number(event.target.value))} className="min-w-0 flex-1 accent-indigo-600" /><span className="ml-1 whitespace-nowrap text-xs tabular-nums text-zinc-500">{displayTime.toFixed(2)} s</span></div>
+        {tracks.map(track => <AudioLayer key={track.id} track={track} resource={resources.get(track.id)} time={displayTime} duration={duration} playing={playing && time < duration} mixer={mixer} />)}
+        <div className="flex items-center gap-1"><Button variant="ghost" title="Début du montage" aria-label="Début du montage" disabled={locked || !duration} onClick={() => { setTime(0); setPlaying(false); }}><SkipBack size={17} /></Button><Button variant="secondary" title={playing ? "Pause" : "Lire le montage"} aria-label={playing ? "Pause" : "Lire le montage"} disabled={locked || !duration} onClick={() => { if (time >= duration) setTime(0); if (!playing) void mixer.resume().catch(() => setError("Lecture audio indisponible.")); setPlaying(!playing); }}>{playing ? <Pause size={18} /> : <Play size={18} />}</Button><Button variant="ghost" title="Fin du montage" aria-label="Fin du montage" disabled={locked || !duration} onClick={() => { setTime(duration); setPlaying(false); }}><SkipForward size={17} /></Button><input aria-label="Position dans le montage" type="range" disabled={locked || !duration} min="0" max={Math.max(0.1, duration)} step={1 / 30} value={displayTime} onChange={event => setTime(Number(event.target.value))} className="min-w-0 flex-1 accent-indigo-600" /><span className="ml-1 whitespace-nowrap text-xs tabular-nums text-zinc-500">{displayTime.toFixed(2)} s</span></div>
       </section>
       <aside className="order-3 min-w-0 lg:order-2 lg:border-l lg:border-zinc-200 lg:pl-5">
         <div className="mb-4 flex border-b border-zinc-200" role="tablist" aria-label="Réglages du montage">{([{ value: "selection", label: "Sélection" }, { value: "mix", label: "Mixage" }, { value: "export", label: "Export" }] as const).map(tab => <button type="button" role="tab" aria-selected={inspectorTab === tab.value} key={tab.value} onClick={() => setInspectorTab(tab.value)} className={`min-h-11 flex-1 border-b-2 text-xs font-medium ${inspectorTab === tab.value ? "border-indigo-600 text-indigo-700" : "border-transparent text-zinc-500"}`}>{tab.label}</button>)}</div>
@@ -256,7 +283,7 @@ function MontageStudio({ initial }: { initial?: MontageProject }) {
           {inspectorTab === "export" && <><h2 className="text-sm font-semibold">Format du montage</h2>{([{ key: "aspect", label: "Cadre", options: [["landscape", "Paysage · 16:9"], ["portrait", "Portrait · 9:16"], ["square", "Carré · 1:1"]] }, { key: "resolution", label: "Résolution", options: [["1080p", "1080p"], ["720p", "720p"], ["480p", "480p"]] }, { key: "fit", label: "Cadrage", options: [["contain", "Média entier"], ["cover", "Remplir le cadre"]] }] as const).map(field => <label key={field.key} className="field-label">{field.label}<select aria-label={field.label} value={settings[field.key]} onChange={event => { remember(); setSettings({ ...settings, [field.key]: event.target.value }); }} className="h-11 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-3">{field.options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>)}<label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={settings.compress} onChange={event => { remember(); setSettings({ ...settings, compress: event.target.checked }); }} className="size-4 accent-indigo-600" />Compression renforcée</label><p className="text-xs text-zinc-500">MP4 · H.264 / AAC · {duration.toFixed(2)} s</p></>}
         </fieldset>
       </aside>
-      <div className="order-2 min-w-0 lg:order-3 lg:col-span-2"><MontageTimeline clips={clips} tracks={tracks} resources={resources} selected={selected} time={displayTime} duration={duration} originalVolume={settings.originalVolume ?? 1} disabled={locked} onSelect={select} onSeek={value => { setTime(value); setPlaying(false); }} onBeginEdit={remember} onTrim={trim} onAudioEdit={audioEdit} onReorder={move} onOriginalVolume={() => { remember(); setSettings({ ...settings, originalVolume: (settings.originalVolume ?? 1) > 0 ? 0 : 1 }); }} /></div>
+      <div className="order-2 min-w-0 lg:order-3 lg:col-span-2"><MontageTimeline onDropMedia={placeMedia} clips={clips} tracks={tracks} resources={resources} selected={selected} time={displayTime} duration={duration} originalVolume={settings.originalVolume ?? 1} disabled={locked} onSelect={select} onSeek={value => { setTime(value); setPlaying(false); }} onBeginEdit={remember} onTrim={trim} onAudioEdit={audioEdit} onReorder={move} onOriginalVolume={() => { remember(); setSettings({ ...settings, originalVolume: (settings.originalVolume ?? 1) > 0 ? 0 : 1 }); }} /></div>
     </div>
     <div className="flex flex-wrap items-center gap-3 border-t border-zinc-200 pt-4"><Button disabled={locked || !clips.length || !audioValid || clips.some(clip => !resources.has(clip.id) || clipDuration(clip) < 0.1)} onClick={exportMontage}><Film size={18} />Exporter le montage MP4</Button>{busy && <Button variant="secondary" onClick={() => { version.current++; worker.current?.terminate(); worker.current = null; setBusy(false); setStatus("Export annulé."); }}><X size={18} />Annuler</Button>}{status && <p role="status" className="text-xs text-zinc-500">{status}{busy ? ` · ${progress} %` : ""}</p>}</div>
     {busy && <progress aria-label="Progression de l'export montage" max="100" value={progress} className="h-2 w-full" />}

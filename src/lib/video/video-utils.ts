@@ -9,7 +9,8 @@ const qualityPixels: Record<ExportQuality, number> = {
 };
 
 export function isSupportedVideo(file: File) {
-  return ["video/mp4", "video/quicktime", "video/webm"].includes(file.type);
+  return ["video/mp4", "video/quicktime", "video/webm"].includes(file.type) ||
+    ((!file.type || file.type === "application/octet-stream") && /\.(mp4|mov|webm)$/i.test(file.name));
 }
 
 export function formatFileSize(bytes: number) {
@@ -42,6 +43,7 @@ export function getResolutionLabel(metadata: VideoMetadata | null, quality: Expo
 
 export function readVideoMetadata(file: File): Promise<VideoMetadata> {
   return new Promise((resolve, reject) => {
+    if (!file.size) { reject(new Error("Ce fichier vidéo est vide.")); return; }
     if (file.size > 2 * 1024 * 1024 * 1024) {
       reject(new Error("Ce fichier depasse la limite de 2 Go pour le MVP."));
       return;
@@ -54,8 +56,13 @@ export function readVideoMetadata(file: File): Promise<VideoMetadata> {
 
     const objectUrl = URL.createObjectURL(file);
     const video = document.createElement("video");
+    const timer = setTimeout(() => {
+      releaseVideo(); URL.revokeObjectURL(objectUrl);
+      reject(new Error("Chargement vidéo trop long. Vérifiez le fichier et son codec."));
+    }, 15_000);
     video.preload = "metadata";
     const releaseVideo = () => {
+      clearTimeout(timer);
       video.onloadedmetadata = null;
       video.onerror = null;
       video.removeAttribute("src");

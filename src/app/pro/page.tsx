@@ -5,5 +5,5 @@ import { ProOffer } from "@/components/account/ProOffer";
 export const metadata = { title: "EdifyCut Pro" };
 export default async function ProPage() {
   const user = await currentUser();
-  return <ProOffer user={user ? publicAccount(user) : null} configured={paypalConfigured()} sandbox={paypalSandbox()} />;
+  return <ProOffer user={user ? await publicAccount(user) : null} configured={paypalConfigured()} sandbox={paypalSandbox()} />;
 }

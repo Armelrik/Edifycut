@@ -9,12 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { UserAccount } from "@/types/account";
 
-export function AccountPanel({ user, initialMode = "login" }: { user: UserAccount | null; initialMode?: "login" | "register" }) {
+export function AccountPanel({ user, initialMode = "login", cloud = false, initialNotice = "", initialError = "" }: { initialNotice?: string; initialError?: string; cloud?: boolean; user: UserAccount | null; initialMode?: "login" | "register" }) {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">(initialMode);
+  const [email, setEmail] = useState("");
+  const [resetting, setResetting] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(initialNotice || null);
+  const [error, setError] = useState<string | null>(initialError || null);
 
   const submit = async (action: string, data: Record<string, unknown>) => {
     if (busy) return;
@@ -23,7 +25,8 @@ export function AccountPanel({ user, initialMode = "login" }: { user: UserAccoun
       const response = await fetch(`/api/account/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "La demande a échoué.");
-      if (action === "profile" || action === "password") setMessage(action === "password" ? "Mot de passe mis à jour. Les autres sessions ont été déconnectées." : "Profil enregistré.");
+      if (body.message) setMessage(body.message);
+      else if (action === "profile" || action === "password") setMessage(action === "password" ? "Mot de passe mis à jour." : "Profil enregistré.");
       router.refresh();
       return true;
     } catch (error) { setError(error instanceof Error ? error.message : "Impossible de joindre le serveur."); }
@@ -39,15 +42,17 @@ export function AccountPanel({ user, initialMode = "login" }: { user: UserAccoun
       {!user ? (
         <div className="max-w-md space-y-6">
           <div className="flex border-b border-zinc-200" role="tablist" aria-label="Accès au compte">
-            {(["login", "register"] as const).map((value) => <button key={value} type="button" role="tab" aria-selected={mode === value} onClick={() => { setMode(value); setError(null); }} className={`min-h-12 flex-1 border-b-2 text-sm font-medium ${mode === value ? "border-indigo-600 text-indigo-700" : "border-transparent text-zinc-500"}`}>{value === "login" ? "Connexion" : "Créer un compte"}</button>)}
+            {(["login", "register"] as const).map((value) => <button key={value} type="button" role="tab" aria-selected={mode === value} onClick={() => { setMode(value); setResetting(false); setError(null); setMessage(null); }} className={`min-h-12 flex-1 border-b-2 text-sm font-medium ${mode === value ? "border-indigo-600 text-indigo-700" : "border-transparent text-zinc-500"}`}>{value === "login" ? "Connexion" : "Créer un compte"}</button>)}
           </div>
-          <form key={mode} className="space-y-5" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void submit(mode, Object.fromEntries(form)); }}>
-            {mode === "register" && <label className="field-label">Nom<Input name="name" autoComplete="name" required maxLength={80} /></label>}
-            <label className="field-label">Adresse e-mail<Input type="email" name="email" autoComplete="email" required maxLength={254} /></label>
-            <label className="field-label">Mot de passe<Input type="password" name="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 12 : undefined} required /></label>
-            {mode === "register" && <p className="text-xs leading-5 text-zinc-500">Au moins 12 caractères. En créant un compte, vous acceptez les <Link href="/terms" className="text-indigo-700 underline">conditions d&apos;utilisation</Link>.</p>}
-            <Button type="submit" disabled={busy} className="w-full">{mode === "login" ? <LogIn size={18} /> : <UserPlus size={18} />}{busy ? "Connexion en cours..." : mode === "login" ? "Se connecter" : "Créer mon compte"}</Button>
+          <form key={resetting ? "reset" : mode} className="space-y-5" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void submit(resetting ? "reset" : mode, Object.fromEntries(form)); }}>
+            {!resetting && mode === "register" && <label className="field-label">Nom<Input name="name" autoComplete="name" required maxLength={80} /></label>}
+            <label className="field-label">Adresse e-mail<Input type="email" name="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} required maxLength={254} /></label>
+            {!resetting && <label className="field-label">Mot de passe<Input type="password" name="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 12 : undefined} required /></label>}
+            {!resetting && mode === "register" && <p className="text-xs leading-5 text-zinc-500">Au moins 12 caractères. En créant un compte, vous acceptez les <Link href="/terms" className="text-indigo-700 underline">conditions d&apos;utilisation</Link>.</p>}
+            <Button type="submit" disabled={busy} className="w-full">{mode === "login" ? <LogIn size={18} /> : <UserPlus size={18} />}{busy ? "Traitement en cours…" : resetting ? "Envoyer le lien de récupération" : mode === "login" ? "Se connecter" : "Créer mon compte"}</Button>
           </form>
+          {cloud && <button disabled={busy} type="button" className="min-h-11 text-sm font-medium text-indigo-700" onClick={() => { setResetting(!resetting); setMessage(null); setError(null); }}>{resetting ? "Retour à la connexion" : "Mot de passe oublié ?"}</button>}
+          {cloud && <button type="button" disabled={busy || !email} className="block min-h-11 text-sm font-medium text-indigo-700 disabled:opacity-50" onClick={() => void submit("resend", { email })}>Renvoyer la confirmation d’e-mail</button>}
         </div>
       ) : (
         <>
@@ -67,7 +72,7 @@ export function AccountPanel({ user, initialMode = "login" }: { user: UserAccoun
             <div className="grid gap-4 sm:grid-cols-2"><label className="field-label">Mot de passe actuel<Input type="password" name="currentPassword" autoComplete="current-password" required /></label><label className="field-label">Nouveau mot de passe<Input type="password" name="password" autoComplete="new-password" minLength={12} placeholder="12 caractères minimum" required /></label></div>
             <Button type="submit" variant="secondary" disabled={busy}><KeyRound size={17} /> Changer le mot de passe</Button>
           </form>
-          <Button type="button" variant="ghost" disabled={busy} onClick={() => void submit("logout", {})}><LogOut size={17} /> Se déconnecter</Button>
+          <div className="flex flex-wrap gap-3"><Button type="button" variant="ghost" disabled={busy} onClick={() => void submit("logout", {})}><LogOut size={17} /> Se déconnecter</Button>{cloud && <Button type="button" variant="secondary" disabled={busy} onClick={() => { if (window.confirm("Déconnecter les sessions de ce compte sur tous les appareils ?")) void submit("logout-all", {}); }}><LogOut size={17} />Déconnecter tous les appareils</Button>}</div>
         </>
       )}
     </div>

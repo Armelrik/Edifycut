@@ -6,6 +6,6 @@ export const runtime = "nodejs";
 export async function GET() {
   try {
     const user = await currentUser();
-    return Response.json({ user: user ? publicAccount(user) : null }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ user: user ? await publicAccount(user) : null }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return accountError(error); }
 }

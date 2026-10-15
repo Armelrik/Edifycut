@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "check:production": "node scripts/check-production.mjs",
+    "migrate:supabase": "node scripts/migrate-supabase.mjs",
     "setup:admin": "node scripts/setup-admin.mjs",
     "setup:youtube": "node scripts/setup-youtube.mjs",
     "dev": "next dev",
@@ -14,6 +16,8 @@
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.3",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
     "class-variance-authority": "^0.7.1",
@@ -35,5 +39,8 @@
     "eslint-config-next": "^16.3.8",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "optionalDependencies": {
+    "@zoom/rtms": "^1.1.0"
   }
 }

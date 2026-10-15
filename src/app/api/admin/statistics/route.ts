@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const user = await currentUser();
     if (user?.role !== "admin") throw new AccountError("Accès administrateur requis.", 403);
-    markPresent(user);
+    await markPresent(user);
     return Response.json(await usageStatistics(), { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return accountError(error); }
 }

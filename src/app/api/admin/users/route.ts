@@ -1,6 +1,8 @@
+import { usingSupabase } from "@/lib/supabase/config";
+import { cloudUsers, cloudAdminCreate, cloudAdminUpdate } from "@/lib/account/cloud";
 import { hash } from "bcryptjs";
 import { randomUUID } from "node:crypto";
-import { database, proDatabase, proUntil, publicAccount, type Account } from "@/lib/account/database";
+import { database, proDatabase, localProUntil, publicAccount, type Account } from "@/lib/account/database";
 import { currentUser } from "@/lib/account/session";
 import { AccountError, accountError, checkOrigin, readBody, validPassword, validName } from "@/lib/account/http";
 
@@ -14,8 +16,8 @@ async function admin() {
 export async function GET() {
   try {
     await admin();
-    const users = database().prepare("SELECT * FROM users ORDER BY created_at DESC").all() as Account[];
-    return Response.json({ users: users.map(publicAccount) }, { headers: { "Cache-Control": "no-store" } });
+    const users = usingSupabase() ? await cloudUsers() : database().prepare("SELECT * FROM users ORDER BY created_at DESC").all() as Account[];
+    return Response.json({ users: await Promise.all(users.map(publicAccount)) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return accountError(error); }
 }
 
@@ -24,6 +26,7 @@ export async function PATCH(request: Request) {
     checkOrigin(request);
     const actor = await admin();
     const body = await readBody(request);
+    if (usingSupabase()) { await cloudAdminUpdate(actor, body); return Response.json({ ok: true, message: "Compte et droits mis à jour." }); }
     const db = database();
     if (typeof body.id !== "string") throw new AccountError("Compte invalide.");
     if (body.role !== undefined && !["admin", "user"].includes(body.role)) throw new AccountError("Rôle invalide.");
@@ -42,7 +45,7 @@ export async function PATCH(request: Request) {
       if (body.proAction === "revoke") db.prepare("DELETE FROM pro_access WHERE user_id = ?").run(target.id);
       if (body.proAction === "grant") {
         if (disabled) throw new AccountError("Réactivez le compte avant de lui accorder Pro.");
-        const expiry = new Date(Math.max(Date.now(), Date.parse(proUntil(target.id) || "") || 0));
+        const expiry = new Date(Math.max(Date.now(), Date.parse(localProUntil(target.id) || "") || 0));
         expiry.setUTCFullYear(expiry.getUTCFullYear() + 1);
         db.prepare("INSERT INTO pro_access VALUES (?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET expires_at = excluded.expires_at, granted_by = excluded.granted_by, updated_at = excluded.updated_at").run(target.id, expiry.toISOString(), actor.id, new Date().toISOString());
       }
@@ -57,6 +60,7 @@ export async function POST(request: Request) {
   try {
     checkOrigin(request); await admin();
     const body = await readBody(request);
+    if (usingSupabase()) { await cloudAdminCreate(body); return Response.json({ ok: true }, { status: 201 }); }
     const name = validName(body.name), password = validPassword(body.password);
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AccountError("Indiquez une adresse e-mail valide.");

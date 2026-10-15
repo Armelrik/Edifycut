@@ -4,9 +4,11 @@ import Link from "next/link";
 import { Radio, Pause, Play, Square, Combine, Download, Trash2, LoaderCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LiveSession } from "@/types/live";
+import { ZoomCapture } from "./ZoomCapture";
 const labels = { starting: "Connexion au direct", recording: "Capture en cours", pausing: "Finalisation du fragment", paused: "En pause", merging: "Assemblage en cours", completed: "Terminée", error: "Interrompue" };
 const size = (bytes: number) => `${(bytes / 1024 ** 2).toFixed(1)} Mo`;
 export function LiveCapture() {
+  const [source, setSource] = useState<"youtube" | "zoom">("youtube");
   const [sessions, setSessions] = useState<LiveSession[]>([]);
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
@@ -44,6 +46,8 @@ export function LiveCapture() {
   }
   return <div className="mx-auto max-w-5xl space-y-7">
     <div><p className="eyebrow">STUDIO / DIRECT</p><h1 className="mt-2 text-3xl font-semibold">Live Capture</h1></div>
+    <nav aria-label="Source de capture" className="flex gap-5 border-b border-zinc-200">{([{ value: "youtube", label: "Direct YouTube" }, { value: "zoom", label: "Réunion Zoom" }] as const).map(tab => <button key={tab.value} type="button" aria-pressed={source === tab.value} onClick={() => setSource(tab.value)} className={`min-h-12 border-b-2 text-sm font-medium ${source === tab.value ? "border-indigo-600 text-indigo-700" : "border-transparent text-zinc-500"}`}>{tab.label}</button>)}</nav>
+    {source === "zoom" ? <ZoomCapture /> : <>
     {login ? <div className="border-y border-zinc-200 py-6"><Link className="font-medium text-indigo-700 underline" href="/account">Se connecter</Link><p className="mt-2 text-sm text-zinc-500">Les captures sont privées et rattachées à votre compte.</p></div> : <form onSubmit={event => { event.preventDefault(); void command("", "start"); }} className="flex flex-col gap-3 sm:flex-row"><label className="min-w-0 flex-1"><span className="field-label">Lien du direct YouTube</span><input required type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="https://www.youtube.com/live/..." className="mt-2 h-11 w-full rounded-md border border-zinc-200 bg-white px-3 text-base" /></label><Button className="sm:self-end" disabled={!!busy}><Radio size={18} />Capturer le direct</Button></form>}
     {error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     <div className="space-y-6">{sessions.map(session => {
@@ -65,5 +69,6 @@ export function LiveCapture() {
       </section>;
     })}</div>
     <p className="text-xs leading-5 text-zinc-500">Capture depuis le point actuel du direct. Les périodes en pause ne sont pas enregistrées. L&apos;assemblage met la capture en pause ; cliquez sur Continuer pour reprendre. Limites : 6 heures et 4 Go par capture. Les captures inactives expirent après 24 heures. Le serveur doit rester allumé.</p>
+    </>}
   </div>;
 }

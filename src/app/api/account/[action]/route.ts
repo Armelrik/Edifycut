@@ -1,3 +1,5 @@
+import { usingSupabase } from "@/lib/supabase/config";
+import { cloudAccountAction } from "@/lib/account/cloud";
 import { randomUUID } from "node:crypto";
 import { compare, hash } from "bcryptjs";
 import { database, publicAccount, type Account } from "@/lib/account/database";
@@ -11,6 +13,8 @@ export async function POST(request: Request, context: { params: Promise<{ action
   try {
     checkOrigin(request);
     const { action } = await context.params;
+    if (usingSupabase()) return Response.json(await cloudAccountAction(action, action === "logout" ? {} : await readBody(request)), { headers: { "Cache-Control": "no-store" } });
+    if (process.env.VERCEL) throw new AccountError("Configurez Supabase pour les comptes en ligne.", 503);
     const auth = await session();
     if (action === "logout") {
       if (auth.userId) presenceTable().prepare("DELETE FROM user_presence WHERE user_id = ? AND version = ?").run(auth.userId, auth.version ?? 0);
@@ -50,7 +54,7 @@ export async function POST(request: Request, context: { params: Promise<{ action
       auth.version = user.session_version;
       await auth.save();
       db.prepare("DELETE FROM auth_attempts WHERE key = ?").run(key);
-      return Response.json({ user: publicAccount(user) });
+      return Response.json({ user: await publicAccount(user) });
     }
     const user = await currentUser();
     if (!user) throw new AccountError("Connectez-vous pour continuer.", 401);

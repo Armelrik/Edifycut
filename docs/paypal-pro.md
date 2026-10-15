@@ -10,6 +10,21 @@ Live Capture et les imports YouTube ne sont pas soumis a ce paywall.
 Ajouter les variables de .env.paypal.example au fichier .env existant.
 Ne pas remplacer les secrets de session deja presents.
 
+Le fichier .env doit contenir des lignes cle=valeur, pas les descriptions
+de la liste ci-dessous. Renseigner le secret complet depuis Apps & Credentials
+dans PayPal Developer, sans le publier dans un chat ou un depot Git.
+
+```dotenv
+PAYPAL_ENV=sandbox
+PAYPAL_CLIENT_ID=
+PAYPAL_CLIENT_SECRET=
+PAYPAL_WEBHOOK_ID=
+APP_URL=http://localhost:3000
+```
+
+Sur Vercel, renseigner aussi ces variables dans Settings > Environment Variables,
+puis redeployer : le fichier .env local n'est pas deploye automatiquement.
+
 - PAYPAL_ENV=sandbox : paiements de test uniquement.
 - PAYPAL_ENV=live : identifiants d'une application marchande PayPal Live.
 - PAYPAL_CLIENT_ID et PAYPAL_CLIENT_SECRET : identifiants de cette application.
@@ -24,6 +39,24 @@ Ecouter CHECKOUT.ORDER.APPROVED, PAYMENT.CAPTURE.COMPLETED,
 PAYMENT.CAPTURE.REFUNDED et PAYMENT.CAPTURE.REVERSED.
 En local, utiliser une origine HTTPS publique de developpement pour les webhooks.
 Redemarrer Next apres avoir renseigne les variables.
+
+### Acces au webhook sur Vercel
+
+Le webhook doit etre accessible sans connexion Vercel. Une redirection vers
+vercel.com/sso-api signifie que Deployment Protection bloque les notifications.
+Utiliser de preference le domaine de production stable et rendre ce deploiement
+public, ou configurer un contournement reserve aux webhooks selon les options
+disponibles sur le compte Vercel. En cas de changement de domaine, modifier
+l'URL du webhook dans PayPal et APP_URL.
+
+Recopier PAYPAL_ENV, PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET,
+PAYPAL_WEBHOOK_ID et APP_URL dans les variables Vercel du bon environnement,
+puis redeployer. Un webhook cree en Sandbox ne traite pas les paiements Live.
+
+En mode local, SQLite conserve les comptes et commandes dans .data.
+Sur Vercel, activer le mode Supabase selon docs/supabase.md pour stocker
+profils, commandes et droits Pro dans Postgres de facon durable et partagee.
+Verifier les paiements Sandbox avant tout encaissement reel.
 
 ## Fonctionnement
 

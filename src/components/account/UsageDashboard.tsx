@@ -40,6 +40,7 @@ export function UsageDashboard() {
     {error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {!data && !error && <p role="status" className="py-8 text-sm text-zinc-500">Chargement des mesures…</p>}
     {data && <>
+      {data.scope === "instance" && <p className="border-b border-zinc-200 pb-4 text-xs leading-5 text-zinc-500">Les comptes sont partagés via Supabase. CPU, mémoire et disque décrivent seulement cette instance Vercel, pas toute l’infrastructure ni le stockage Supabase.</p>}
       <div className="grid grid-cols-2 gap-5 border-y border-zinc-200 py-5 lg:grid-cols-4">{[
         { label: "Utilisateurs connectés", value: String(data.sample.online), detail: "Actifs depuis moins de 90 s", icon: Users },
         { label: "CPU machine", value: data.sample.cpu === null ? "—" : `${data.sample.cpu.toFixed(1)} %`, detail: `${data.cores} cœurs logiques`, icon: Cpu },

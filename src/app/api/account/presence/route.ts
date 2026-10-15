@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     checkOrigin(request);
     const user = await currentUser();
     if (!user) throw new AccountError("Authentification requise.", 401);
-    markPresent(user);
+    await markPresent(user);
     return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
   } catch (error) { return accountError(error); }
 }

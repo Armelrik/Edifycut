@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  outputFileTracingIncludes: {
+    "/api/zoom/*": ["./scripts/zoom-recorder.mjs", "./node_modules/@zoom/rtms/**/*"],
+  },
   outputFileTracingExcludes: {
     "/*": ["./.data/**/*", "./.tools/**/*", "./.env*"],
   },

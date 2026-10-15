@@ -10,6 +10,8 @@ import type { UserAccount } from "@/types/account";
 
 export function AdminUsers({ users, currentId }: { users: UserAccount[]; currentId: string }) {
   const router = useRouter();
+  const [search, setSearch] = useState(""), [filter, setFilter] = useState("all");
+  const visible = users.filter(user => (user.name + " " + user.email).toLocaleLowerCase("fr-FR").includes(search.trim().toLocaleLowerCase("fr-FR")) && (filter === "all" || filter === "admin" && user.role === "admin" || filter === "active" && !user.disabled || filter === "disabled" && user.disabled));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -21,7 +23,7 @@ export function AdminUsers({ users, currentId }: { users: UserAccount[]; current
       const response = await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...data }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
-      setMessage(data.proAction ? "Accès Pro mis à jour." : "Compte mis à jour. Ses sessions précédentes ont été invalidées.");
+      setMessage(body.message || (data.proAction ? "Accès Pro mis à jour." : "Compte mis à jour. Ses sessions précédentes ont été invalidées."));
       setResetId(null); router.refresh();
     } catch (error) { setError(error instanceof Error ? error.message : "La demande a échoué."); }
     finally { setBusy(false); }
@@ -41,8 +43,10 @@ export function AdminUsers({ users, currentId }: { users: UserAccount[]; current
       }}><div className="grid gap-4 sm:grid-cols-2"><label className="field-label">Nom<Input name="name" required maxLength={80} autoComplete="off" /></label><label className="field-label">E-mail<Input name="email" type="email" required maxLength={254} autoComplete="off" /></label><label className="field-label">Mot de passe initial<Input name="password" type="password" required minLength={12} autoComplete="new-password" /></label><label className="field-label">Rôle<select name="role" className="h-11 rounded-md border border-zinc-200 bg-white px-3"><option value="user">Utilisateur</option><option value="admin">Administrateur</option></select></label></div><Button type="submit" disabled={busy}><UserPlus size={18} />Créer l&apos;utilisateur</Button></form>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       {message && <p role="status" className="text-sm text-emerald-700">{message}</p>}
+      <div className="flex flex-wrap gap-3"><label className="min-w-0 flex-1"><span className="sr-only">Rechercher un utilisateur</span><Input type="search" aria-label="Rechercher un utilisateur" placeholder="Nom ou adresse e-mail" value={search} onChange={event => setSearch(event.target.value)} /></label><label><span className="sr-only">Filtrer les comptes</span><select aria-label="Filtrer les comptes" value={filter} onChange={event => setFilter(event.target.value)} className="h-11 rounded-md border border-zinc-200 bg-white px-3 text-sm"><option value="all">Tous les comptes</option><option value="active">Actifs</option><option value="disabled">Désactivés</option><option value="admin">Administrateurs</option></select></label></div>
+      {!visible.length && <p role="status" className="text-sm text-zinc-500">Aucun compte correspondant.</p>}
       <div className="divide-y divide-zinc-200">
-        {users.map(user => <div key={user.id} className="space-y-3 py-5">
+        {visible.map(user => <div key={user.id} className="space-y-3 py-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center">
             <div className="min-w-0 flex-1"><p className="font-semibold">{user.name}{user.id === currentId ? " (vous)" : ""}</p><p className="break-all text-sm text-zinc-500">{user.email}</p><p className="mt-1 text-xs text-zinc-400">Créé le {new Date(user.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}</p></div>
             <div className="flex flex-wrap items-center gap-3">

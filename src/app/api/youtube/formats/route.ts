@@ -9,6 +9,7 @@ import {
   run,
   toErrorBody,
 } from "@/lib/video/ytdlp";
+import { requireYouTubeUser } from "@/lib/video/youtube-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ const size = (f: RawFormat) => f.filesize ?? f.filesize_approx ?? 0;
 
 export async function POST(request: Request) {
   try {
+    await requireYouTubeUser(request);
     const body = await request.json().catch(() => null);
     const url = assertYouTubeUrl(body?.url);
 

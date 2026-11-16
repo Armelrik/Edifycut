@@ -37,7 +37,7 @@ Le code detecte automatiquement .tools/yt-dlp/bin/yt-dlp et utilise Node.js
 comme moteur JavaScript. YTDLP_PATH n'est necessaire qu'avec une autre installation.
 Le service doit avoir acces en ecriture a .data, aux fichiers temporaires et
 au reseau. Configurer un service de lancement permanent et des sauvegardes de
-la base .data/edifycut.sqlite et de ses journaux avant une exploitation publique.
+du dossier .data et des journaux avant une exploitation publique.
 
 ## Limites d'architecture
 
@@ -45,8 +45,10 @@ Vercel Hobby limite une fonction a 300 secondes avec Fluid Compute.
 Les captures de plusieurs heures et les processus de fond doivent fonctionner
 sur un service persistant, pas uniquement dans une requete serverless.
 La progression actuelle utilise la memoire du processus et n'est pas partagee
-entre plusieurs instances. La base SQLite et les fragments live utilisent
-egalement le disque local.
+entre plusieurs instances. Les fragments live utilisent le disque local ; seul
+le MP4 assemble est envoye dans le stockage Neon. L'import YouTube exige un
+compte connecte et limite les telechargements simultanes (2 par compte,
+4 par serveur, reglables via YT_MAX_PER_USER et YT_MAX_CONCURRENT).
 
 Pour conserver Vercel en facade, deplacer YouTube et Live Capture vers un
 backend persistant avec authentification, et adapter les API de l'application.

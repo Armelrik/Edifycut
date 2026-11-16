@@ -2,9 +2,8 @@ import "server-only";
 import { fork, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { database } from "@/lib/account/database";
 import { AccountError } from "@/lib/account/http";
 import type { ZoomCapture } from "@/types/zoom";
 const root = join(process.cwd(), ".data", "zoom");
@@ -12,16 +11,21 @@ type Job = { child: ChildProcess; busy: boolean; timer: ReturnType<typeof setTim
 const globalState = globalThis as typeof globalThis & { edifycutZoom?: Map<string, Job> };
 const jobs = globalState.edifycutZoom ??= new Map();
 const requireModule = createRequire(join(process.cwd(), "package.json"));
-function db() {
-  const value = database();
-  value.exec("CREATE TABLE IF NOT EXISTS zoom_captures (id TEXT PRIMARY KEY, owner TEXT NOT NULL, data TEXT NOT NULL)");
-  return value;
-}
+// Les captures Zoom exigent un serveur persistant : le manifeste vit à côté des fragments audio.
 function save(capture: ZoomCapture) {
   capture.updatedAt = new Date().toISOString();
-  db().prepare("INSERT INTO zoom_captures VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data").run(capture.id, capture.owner, JSON.stringify(capture));
+  const directory = join(root, capture.id);
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  writeFileSync(join(directory, "capture.tmp"), JSON.stringify(capture), { mode: 0o600 });
+  renameSync(join(directory, "capture.tmp"), join(directory, "capture.json"));
 }
-function records() { return (db().prepare("SELECT data FROM zoom_captures").all() as { data: string }[]).map(row => JSON.parse(row.data) as ZoomCapture); }
+function records(): ZoomCapture[] {
+  if (!existsSync(root)) return [];
+  return readdirSync(root).filter(id => /^[a-f0-9-]{36}$/.test(id)).flatMap(id => {
+    try { const capture = JSON.parse(readFileSync(join(root, id, "capture.json"), "utf8")) as ZoomCapture; return capture.id === id ? [capture] : []; }
+    catch { return []; }
+  });
+}
 function parts(id: string) {
   const directory = join(root, id);
   if (!existsSync(directory)) return [];
@@ -42,7 +46,7 @@ export function listZoom(owner: string) {
     capture.fragments = parts(capture.id);
     if (!jobs.has(capture.id) && ["starting", "recording", "paused", "merging"].includes(capture.status)) { capture.status = "error"; capture.error = "Le serveur a été redémarré ou la capture interrompue. Les fragments restent disponibles."; save(capture); }
     if (capture.status === "waiting" && now - Date.parse(capture.createdAt) > 2 * 3600_000) { capture.status = "error"; capture.error = "Aucun flux Zoom autorisé reçu dans les deux heures."; save(capture); }
-    if (!jobs.has(capture.id) && capture.status !== "waiting" && now - Date.parse(capture.updatedAt) > 24 * 3600_000) { rmSync(join(root, capture.id), { recursive: true, force: true }); db().prepare("DELETE FROM zoom_captures WHERE id = ?").run(capture.id); return []; }
+    if (!jobs.has(capture.id) && capture.status !== "waiting" && now - Date.parse(capture.updatedAt) > 24 * 3600_000) { rmSync(join(root, capture.id), { recursive: true, force: true }); return []; }
     return [capture];
   }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
@@ -93,7 +97,7 @@ export function zoomCommand(id: string, owner: string, action: unknown) {
   if (job?.busy) throw new AccountError("Une commande est déjà en cours.", 409);
   if (action === "delete") {
     if (job) throw new AccountError("Terminez la capture avant de la supprimer.", 409);
-    rmSync(join(root, id), { recursive: true, force: true }); db().prepare("DELETE FROM zoom_captures WHERE id = ?").run(id); return null;
+    rmSync(join(root, id), { recursive: true, force: true }); return null;
   }
   if (action === "stop" && capture.status === "waiting") { capture.status = "completed"; save(capture); return capture; }
   if (action === "resume" && (!job || capture.status !== "paused")) throw new AccountError("La reprise nécessite un flux Zoom toujours connecté.", 409);

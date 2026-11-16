@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const user = await currentUser();
     if (!user) throw new AccountError("Connectez-vous pour accéder aux captures.", 401);
-    if (process.env.VERCEL) throw new AccountError("Live Capture nécessite un serveur persistant, distinct du stockage Supabase des comptes.", 503);
+    if (process.env.VERCEL) throw new AccountError("Live Capture nécessite un serveur persistant.", 503);
     return Response.json({ sessions: listLive(user.id) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return accountError(error); }
 }

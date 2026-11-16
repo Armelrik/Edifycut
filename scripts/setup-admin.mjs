@@ -1,32 +1,18 @@
-import { randomBytes, randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import Database from "better-sqlite3";
-import { hash } from "bcryptjs";
+// Donne le rôle administrateur à un compte déjà créé depuis /account.
 import nextEnv from "@next/env";
+import pg from "pg";
 
 nextEnv.loadEnvConfig(process.cwd());
-if (!process.env.SESSION_SECRET) {
-  const envPath = join(process.cwd(), ".env");
-  const existing = existsSync(envPath) ? readFileSync(envPath, "utf8") : "";
-  writeFileSync(envPath, `${existing.trimEnd()}\nSESSION_SECRET=${randomBytes(48).toString("hex")}\n`, { mode: 0o600 });
-} else if (process.env.SESSION_SECRET.length < 32) {
-  throw new Error("SESSION_SECRET doit contenir au moins 32 caractères.");
-}
-const directory = join(process.cwd(), ".data");
-mkdirSync(directory, { recursive: true, mode: 0o700 });
-const db = new Database(join(directory, "edifycut.sqlite"));
-db.pragma("journal_mode = WAL");
-db.exec(readFileSync(join(process.cwd(), "src/lib/account/schema.sql"), "utf8"));
-const email = process.env.ADMIN_EMAIL || "admin@edifycut.local";
-const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
-if (existing) {
-  console.log("Le compte existe déjà ; aucun identifiant modifié.");
-} else {
-  const password = randomBytes(18).toString("base64url");
-  db.prepare("INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, ?, ?, 'admin')")
-    .run(randomUUID(), email, "Administrateur", await hash(password, 12));
-  writeFileSync(join(directory, "admin-credentials.txt"), `EdifyCut - accès administrateur local\nAdresse : ${email}\nMot de passe : ${password}\nConnexion : http://localhost:3000/account\nChangez le mot de passe depuis votre compte après connexion.\n`, { mode: 0o600 });
-  console.log("Compte administrateur créé. Identifiants : .data/admin-credentials.txt");
-}
-db.close();
+const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+if (!email) throw new Error("Définissez ADMIN_EMAIL avec l'adresse d'un compte existant.");
+const connectionString = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL est requis.");
+const client = new pg.Client({ connectionString });
+await client.connect();
+try {
+  const { rowCount } = await client.query("UPDATE edifycut.profiles SET role = 'admin', disabled = false, session_version = session_version + 1 WHERE lower(email) = $1", [email]);
+  if (!rowCount) {
+    console.error(`Aucun profil pour ${email}. Créez le compte depuis /account et connectez-vous une fois, puis relancez.`);
+    process.exitCode = 1;
+  } else console.log(`OK : ${email} est administrateur.`);
+} finally { await client.end(); }

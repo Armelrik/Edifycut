@@ -36,7 +36,6 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.paypal.example
-!.env.supabase.example
 
 # vercel
 .vercel
@@ -44,3 +43,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.neon
+
+# notes locales contenant des secrets
+env.txt

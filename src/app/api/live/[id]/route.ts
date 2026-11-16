@@ -3,6 +3,7 @@ import { Readable } from "node:stream";
 import { currentUser } from "@/lib/account/session";
 import { AccountError, checkOrigin, readBody, accountError } from "@/lib/account/http";
 import { controlLive, liveFile } from "@/lib/live/capture";
+import { signedDownloadUrl } from "@/lib/neon/storage";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ id: string }> };
@@ -22,6 +23,8 @@ export async function GET(request: Request, context: Context) {
     if (!user) throw new AccountError("Connectez-vous pour télécharger cette capture.", 401);
     const { id } = await context.params;
     const file = liveFile(id, user.id, new URL(request.url).searchParams.get("fragment"));
+    // MP4 assemblé stocké chez Neon : redirection vers une URL signée de courte durée.
+    if (file.remote !== undefined) return new Response(null, { status: 302, headers: { Location: await signedDownloadUrl(file.remote, `edifycut-${file.name}`), "Cache-Control": "private, no-store" } });
     const source = createReadStream(file.path);
     const abort = () => { source.destroy(); };
     request.signal.addEventListener("abort", abort, { once: true });

@@ -142,28 +142,26 @@ La partie reseaux sociaux reste reservee a la prochaine etape.
 
 ## Comptes et administration
 
+Les comptes reposent sur Neon : Neon Auth pour l'authentification, Postgres
+(schema `edifycut`) pour les profils, droits Pro, commandes PayPal, presence et
+statistiques. Variables requises : `DATABASE_URL`, `DATABASE_URL_UNPOOLED`,
+`NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` (32 caracteres minimum).
+
 ```bash
-npm run setup:admin
+npm run migrate:neon                         # cree ou met a jour le schema
+ADMIN_EMAIL=vous@exemple.fr npm run setup:admin   # promeut un compte existant
 ```
 
-Cette commande cree le compte `admin@edifycut.local`, un mot de passe aleatoire
-et le secret de session dans `.env`. `ADMIN_EMAIL` peut definir une autre adresse
-avant la creation. Les identifiants initiaux sont dans `.data/admin-credentials.txt`
-(fichier prive, exclu de Git). Changez le mot de passe depuis `/account`.
-Relancer la commande ne remplace pas un compte existant.
+Creez d'abord le compte depuis `/account`, puis lancez `setup:admin` pour lui
+donner le role administrateur. La page `/admin` permet ensuite de changer les
+roles, desactiver les comptes et accorder Pro. La recuperation de mot de passe
+se fait par code e-mail (Neon Auth). Utilisez une branche Neon distincte pour
+le developpement et les previews.
 
-Les comptes sont stockes dans `.data/edifycut.sqlite`. L'inscription, la connexion,
-le profil et le changement de mot de passe sont accessibles sur `/account`.
-La page `/admin` permet aux administrateurs de changer les roles, desactiver
-les comptes et definir un nouveau mot de passe. Ces operations invalident les
-sessions precedentes du compte. La recuperation de mot de passe par e-mail
-n'est pas configuree ; elle passe par l'administrateur de cette installation.
-
-Pour un hebergement, conserver `.data` sur un disque persistant et fournir
-`SESSION_SECRET` via la configuration du serveur. En production, les cookies
-de session exigent HTTPS. Les montages locaux ne sont pas synchronises avec
-le compte. Seules les captures de directs sont rattachees au compte et conservees
-temporairement sur le serveur ; cela ne constitue pas une bibliotheque cloud.
+Les montages locaux ne sont pas synchronises avec le compte. Les captures de
+directs sont rattachees au compte ; le MP4 assemble est envoye dans le bucket
+prive Neon `assets` (variables `AWS_*` fournies par `neon env pull`) et
+telecharge via une URL signee. Sans ces variables, il reste sur le disque.
 
 ## Getting Started
 

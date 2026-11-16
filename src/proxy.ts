@@ -1,22 +1,9 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { usingSupabase, supabasePublicConfig } from "@/lib/supabase/config";
-export async function proxy(request: NextRequest) {
-  if (!usingSupabase()) return NextResponse.next();
-  const { url, key } = supabasePublicConfig();
-  let response = NextResponse.next({ request });
-  const client = createServerClient(url, key, { cookies: {
-    getAll: () => request.cookies.getAll(),
-    setAll: values => {
-      for (const { name, value } of values) request.cookies.set(name, value);
-      response = NextResponse.next({ request });
-      for (const { name, value, options } of values) response.cookies.set(name, value, options);
-    },
-  } });
-  await client.auth.getUser();
-  response.headers.set("Cache-Control", "private, no-store");
-  return response;
-}
+import { auth } from "@/lib/neon/auth";
+
+// Le reste de l’application est public : chaque page ou route vérifie elle-même la session.
+// Ce proxy rafraîchit la session Neon Auth et redirige les visiteurs non connectés hors de l’administration.
+export default auth.middleware({ loginUrl: "/account" });
+
 export const config = {
-  matcher: ["/((?!_next/|ffmpeg-core/|api/billing/paypal/webhook|api/zoom/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|wasm|js|css|map)$).*)"],
+  matcher: ["/admin/:path*"],
 };

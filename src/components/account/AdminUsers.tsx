@@ -3,7 +3,7 @@
 import { hasPro } from "@/lib/plans";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, Users, KeyRound, UserPlus } from "lucide-react";
+import { ShieldCheck, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { UserAccount } from "@/types/account";
@@ -15,8 +15,6 @@ export function AdminUsers({ users, currentId }: { users: UserAccount[]; current
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [resetId, setResetId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
   const update = async (id: string, data: Record<string, unknown>) => {
     setBusy(true); setError(null); setMessage(null);
     try {
@@ -24,23 +22,15 @@ export function AdminUsers({ users, currentId }: { users: UserAccount[]; current
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       setMessage(body.message || (data.proAction ? "Accès Pro mis à jour." : "Compte mis à jour. Ses sessions précédentes ont été invalidées."));
-      setResetId(null); router.refresh();
+      router.refresh();
     } catch (error) { setError(error instanceof Error ? error.message : "La demande a échoué."); }
     finally { setBusy(false); }
   };
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <div><p className="eyebrow">Administration</p><h1 className="mt-2 flex items-center gap-3 text-3xl font-semibold"><ShieldCheck size={28} className="text-indigo-600" /> Comptes utilisateurs</h1><p className="mt-3 text-zinc-500">Gérez les accès, les rôles et les mots de passe.</p></div>
+      <div><p className="eyebrow">Administration</p><h1 className="mt-2 flex items-center gap-3 text-3xl font-semibold"><ShieldCheck size={28} className="text-indigo-600" /> Comptes utilisateurs</h1><p className="mt-3 text-zinc-500">Gérez les accès, les rôles et l’offre Pro.</p></div>
       <div className="flex gap-3 border-y border-zinc-200 py-5"><Users className="text-indigo-600" /><span><strong>{users.length}</strong> comptes · <strong>{users.filter(u => !u.disabled).length}</strong> actifs</span></div>
-      <Button variant="secondary" disabled={busy} onClick={() => setCreating(!creating)}><UserPlus size={18} />Créer un compte</Button>
-      {creating && <form className="space-y-4 border-y border-zinc-200 py-5" onSubmit={async event => {
-        event.preventDefault(); const form = event.currentTarget; setBusy(true); setError(null); setMessage(null);
-        try {
-          const response = await fetch("/api/admin/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(new FormData(form))) });
-          const body = await response.json(); if (!response.ok) throw new Error(body.error);
-          form.reset(); setCreating(false); setMessage("Compte créé. Transmettez le mot de passe par un canal sécurisé."); router.refresh();
-        } catch (error) { setError((error as Error).message); } finally { setBusy(false); }
-      }}><div className="grid gap-4 sm:grid-cols-2"><label className="field-label">Nom<Input name="name" required maxLength={80} autoComplete="off" /></label><label className="field-label">E-mail<Input name="email" type="email" required maxLength={254} autoComplete="off" /></label><label className="field-label">Mot de passe initial<Input name="password" type="password" required minLength={12} autoComplete="new-password" /></label><label className="field-label">Rôle<select name="role" className="h-11 rounded-md border border-zinc-200 bg-white px-3"><option value="user">Utilisateur</option><option value="admin">Administrateur</option></select></label></div><Button type="submit" disabled={busy}><UserPlus size={18} />Créer l&apos;utilisateur</Button></form>}
+      <p className="text-sm text-zinc-500">Les nouveaux comptes se créent depuis la page d’inscription ; attribuez ensuite leurs droits ici. Pour un mot de passe oublié, l’utilisateur passe par « Mot de passe oublié ? ».</p>
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       {message && <p role="status" className="text-sm text-emerald-700">{message}</p>}
       <div className="flex flex-wrap gap-3"><label className="min-w-0 flex-1"><span className="sr-only">Rechercher un utilisateur</span><Input type="search" aria-label="Rechercher un utilisateur" placeholder="Nom ou adresse e-mail" value={search} onChange={event => setSearch(event.target.value)} /></label><label><span className="sr-only">Filtrer les comptes</span><select aria-label="Filtrer les comptes" value={filter} onChange={event => setFilter(event.target.value)} className="h-11 rounded-md border border-zinc-200 bg-white px-3 text-sm"><option value="all">Tous les comptes</option><option value="active">Actifs</option><option value="disabled">Désactivés</option><option value="admin">Administrateurs</option></select></label></div>
@@ -54,10 +44,8 @@ export function AdminUsers({ users, currentId }: { users: UserAccount[]; current
               <select id={`role-${user.id}`} className="h-11 rounded-md border border-zinc-200 bg-white px-3 text-sm" value={user.role} disabled={busy || user.id === currentId} onChange={event => void update(user.id, { role: event.target.value })}><option value="user">Utilisateur</option><option value="admin">Administrateur</option></select>
               <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="size-4 accent-indigo-600" checked={!user.disabled} disabled={busy || user.id === currentId} onChange={event => void update(user.id, { disabled: !event.target.checked })} /> Actif</label>
               <span className="text-xs text-zinc-500">{hasPro(user.proUntil) ? `Pro jusqu’au ${new Date(user.proUntil!).toLocaleDateString("fr-FR")}` : "Gratuit"}</span><Button variant="secondary" disabled={busy || user.disabled} onClick={() => { if (window.confirm("Accorder un an de Pro à ce compte ? Cette action ne prélève aucun paiement.")) void update(user.id, { proAction: "grant" }); }}>Pro + 1 an</Button>{hasPro(user.proUntil) && <Button variant="ghost" disabled={busy} onClick={() => { if (window.confirm("Retirer cet accès Pro ?")) void update(user.id, { proAction: "revoke" }); }}>Retirer Pro</Button>}
-              {user.id !== currentId && <Button type="button" variant="ghost" disabled={busy} onClick={() => setResetId(resetId === user.id ? null : user.id)}><KeyRound size={17} /> Réinitialiser</Button>}
             </div>
           </div>
-          {resetId === user.id && <form className="flex max-w-lg flex-col gap-2 sm:flex-row" onSubmit={event => { event.preventDefault(); void update(user.id, { password: new FormData(event.currentTarget).get("password") }); }}><label className="flex-1"><span className="sr-only">Nouveau mot de passe</span><Input name="password" type="password" autoComplete="new-password" placeholder="Nouveau mot de passe, 12 caractères min." required minLength={12} /></label><Button type="submit" disabled={busy}><KeyRound size={16} /> Confirmer</Button></form>}
         </div>)}
       </div>
     </div>

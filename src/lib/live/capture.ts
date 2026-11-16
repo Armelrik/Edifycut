@@ -5,9 +5,10 @@ import { join } from "node:path";
 import { AccountError } from "@/lib/account/http";
 import { normalizeYouTubeUrl } from "@/lib/video/youtube-url";
 import { baseArgs, run, classify } from "@/lib/video/ytdlp";
+import { deleteKey, deletePrefix, storageConfigured, uploadFile } from "@/lib/neon/storage";
 import type { LiveSession } from "@/types/live";
 
-type Job = LiveSession & { owner: string; run: number; busy?: boolean; child?: ChildProcess; closed?: Promise<void>; starting?: Promise<void>; abort?: AbortController; stopping?: boolean };
+type Job = LiveSession & { owner: string; run: number; storedKey?: string | null; uploading?: Promise<void>; busy?: boolean; child?: ChildProcess; closed?: Promise<void>; starting?: Promise<void>; abort?: AbortController; stopping?: boolean };
 const root = join(process.cwd(), ".data", "live");
 const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
 const MAX_SECONDS = 6 * 3600;
@@ -24,11 +25,34 @@ if (!globalState.edifycutLiveChildren) {
 
 function save(job: Job) {
   job.updatedAt = new Date().toISOString();
-  const { child, closed, starting, abort, busy, stopping, ...data } = job;
-  void child; void closed; void starting; void abort; void busy; void stopping;
+  const { child, closed, starting, abort, busy, stopping, uploading, ...data } = job;
+  void child; void closed; void starting; void abort; void busy; void stopping; void uploading;
   const dir = join(root, job.id);
   writeFileSync(join(dir, "session.tmp"), JSON.stringify(data), { mode: 0o600 });
   renameSync(join(dir, "session.tmp"), join(dir, "session.json"));
+}
+
+const remotePrefix = (job: Job) => `live/${job.owner}/${job.id}/`;
+
+/**
+ * Envoie le MP4 assemblé dans le bucket privé Neon, puis libère le disque du serveur.
+ * Tant que l’envoi n’est pas terminé, le téléchargement sert le fichier local.
+ */
+function startUpload(job: Job) {
+  const output = job.output;
+  if (!output || job.storedKey || job.uploading || !storageConfigured()) return;
+  const path = join(root, job.id, output), key = remotePrefix(job) + output;
+  if (!existsSync(path)) return;
+  job.uploading = (async () => {
+    try {
+      await uploadFile(key, path, "video/mp4");
+      if (job.output !== output || !globalState.edifycutLive?.has(job.id)) { await deleteKey(key); return; }
+      job.storedKey = key; save(job);
+      rmSync(path, { force: true });
+    } catch (error) {
+      console.error("[live] envoi vers le stockage Neon impossible ; le fichier reste sur le disque", error instanceof Error ? error.message : error);
+    } finally { job.uploading = undefined; }
+  })();
 }
 
 function jobs() {
@@ -45,13 +69,15 @@ function jobs() {
           save(job);
         }
         map.set(id, job);
+        if (job.output && !job.storedKey) queueMicrotask(() => startUpload(job));
       } catch { /* Leave damaged manifests for the administrator to inspect. */ }
     }
     globalState.edifycutLive = map;
   }
   for (const [id, job] of globalState.edifycutLive) {
-    if (!job.busy && !job.child && !job.abort && Date.now() - Date.parse(job.updatedAt) > RETENTION) {
+    if (!job.busy && !job.child && !job.abort && !job.uploading && Date.now() - Date.parse(job.updatedAt) > RETENTION) {
       rmSync(join(root, id), { recursive: true, force: true });
+      if (job.storedKey) void deletePrefix(remotePrefix(job)).catch(error => console.error("[live] suppression distante impossible", error));
       globalState.edifycutLive.delete(id);
     }
   }
@@ -183,7 +209,9 @@ async function merge(job: Job) {
     throw new AccountError(job.error, 502);
   }
   if (job.output) { try { rmSync(join(dir, job.output), { force: true }); } catch { /* Open downloads can delay cleanup on Windows. */ } }
+  if (job.storedKey) { const old = job.storedKey; job.storedKey = null; void deleteKey(old).catch(() => { /* Supprimé avec le préfixe de la capture. */ }); }
   job.output = output; job.mergedFragments = parts.length; job.status = previous === "completed" || previous === "error" ? previous : "paused"; save(job);
+  startUpload(job);
 }
 
 export function createLive(owner: string, raw: unknown) {
@@ -213,7 +241,13 @@ export async function controlLive(id: string, owner: string, action: unknown) {
       job.starting = capture(job);
     } else {
       await stop(job);
-      if (action === "delete") { rmSync(join(root, id), { recursive: true, force: true }); jobs().delete(id); return null; }
+      if (action === "delete") {
+        jobs().delete(id);
+        await job.uploading;
+        rmSync(join(root, id), { recursive: true, force: true });
+        if (storageConfigured()) await deletePrefix(remotePrefix(job));
+        return null;
+      }
       if (action === "stop") job.status = "completed";
       if (action === "merge" || (action === "stop" && fragments(job).length)) await merge(job);
       save(job);
@@ -222,10 +256,11 @@ export async function controlLive(id: string, owner: string, action: unknown) {
   } finally { job.busy = false; }
 }
 
-export function liveFile(id: string, owner: string, name: string | null) {
+export function liveFile(id: string, owner: string, name: string | null): { remote: string; name: string } | { remote?: undefined; path: string; name: string; bytes: number } {
   const job = ownedLive(id, owner);
   const selected = name || job.output;
   if (!selected || (selected !== job.output && !fragments(job).some(part => part.name === selected))) throw new AccountError("Fichier indisponible.", 404);
+  if (selected === job.output && job.storedKey) return { remote: job.storedKey, name: selected };
   const path = join(root, id, selected);
   if (!existsSync(path)) throw new AccountError("Fichier introuvable.", 404);
   return { path, name: selected, bytes: statSync(path).size };

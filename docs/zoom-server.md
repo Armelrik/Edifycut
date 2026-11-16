@@ -27,7 +27,7 @@ Un lien ou un mot de passe de reunion ne donne pas acces a son audio.
 - Le SDK officiel prend aussi en charge Mac Apple Silicon pour le serveur.
   Un serveur Windows ou Mac Intel n'est pas pris en charge par cette version
   du SDK. Les participants peuvent utiliser ces systemes.
-- Disque durable et prive pour .data et base SQLite existante.
+- Disque durable et prive pour .data (manifestes et fragments des captures).
 - Une seule instance Next/worker pour cette premiere integration.
 - Application Zoom General App avec RTMS et scope meeting:read:meeting_audio.
 - Disponibilite RTMS sur le compte Zoom (Developer Pack/credits selon Zoom).

@@ -53,9 +53,8 @@ Recopier PAYPAL_ENV, PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET,
 PAYPAL_WEBHOOK_ID et APP_URL dans les variables Vercel du bon environnement,
 puis redeployer. Un webhook cree en Sandbox ne traite pas les paiements Live.
 
-En mode local, SQLite conserve les comptes et commandes dans .data.
-Sur Vercel, activer le mode Supabase selon docs/supabase.md pour stocker
-profils, commandes et droits Pro dans Postgres de facon durable et partagee.
+Les profils, commandes et droits Pro sont stockes dans Postgres Neon
+(schema edifycut, fonctions reserve/finalize/refund_paypal_*).
 Verifier les paiements Sandbox avant tout encaissement reel.
 
 ## Fonctionnement
@@ -69,7 +68,7 @@ Le compte doit correspondre a celui ayant cree la commande.
 
 Les notifications de remboursement/reversion retirent l'acces issu de ce
 paiement ; elles ne suppriment pas un acces accorde ensuite manuellement.
-Les commandes et references de capture sont conservees dans SQLite.
+Les commandes et references de capture sont conservees dans Postgres Neon.
 L'administration peut accorder un an manuellement, sans encaisser de paiement.
 
 ## Limites

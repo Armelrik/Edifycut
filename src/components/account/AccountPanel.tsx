@@ -8,8 +8,9 @@ import { LogIn, LogOut, Save, ShieldCheck, UserPlus, KeyRound } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { UserAccount } from "@/types/account";
+import { authClient } from "@/lib/neon/client";
 
-export function AccountPanel({ user, initialMode = "login", cloud = false, initialNotice = "", initialError = "" }: { initialNotice?: string; initialError?: string; cloud?: boolean; user: UserAccount | null; initialMode?: "login" | "register" }) {
+export function AccountPanel({ user, initialMode = "login", initialNotice = "", initialError = "" }: { initialNotice?: string; initialError?: string; user: UserAccount | null; initialMode?: "login" | "register" }) {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [email, setEmail] = useState("");
@@ -22,6 +23,17 @@ export function AccountPanel({ user, initialMode = "login", cloud = false, initi
     if (busy) return;
     setBusy(true); setError(null); setMessage(null);
     try {
+      if (["reset", "recover", "resend", "verify"].includes(action)) {
+        const address = String(data.email || email).trim().toLowerCase();
+        const result = action === "reset" || action === "resend"
+          ? await authClient.emailOtp.sendVerificationOtp({ email: address, type: action === "reset" ? "forget-password" : "email-verification" })
+          : action === "verify" ? await authClient.emailOtp.verifyEmail({ email: address, otp: String(data.code || "") })
+          : await authClient.emailOtp.resetPassword({ email: address, otp: String(data.code || ""), password: String(data.password || "") });
+        if (result.error) throw new Error(result.error.message || "La demande a échoué.");
+        setMessage(action === "reset" || action === "resend" ? "Si cette adresse est concernée, un code a été envoyé par e-mail." : action === "verify" ? "Adresse confirmée." : "Mot de passe réinitialisé.");
+        router.refresh();
+        return true;
+      }
       const response = await fetch(`/api/account/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "La demande a échoué.");
@@ -49,10 +61,15 @@ export function AccountPanel({ user, initialMode = "login", cloud = false, initi
             <label className="field-label">Adresse e-mail<Input type="email" name="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} required maxLength={254} /></label>
             {!resetting && <label className="field-label">Mot de passe<Input type="password" name="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 12 : undefined} required /></label>}
             {!resetting && mode === "register" && <p className="text-xs leading-5 text-zinc-500">Au moins 12 caractères. En créant un compte, vous acceptez les <Link href="/terms" className="text-indigo-700 underline">conditions d&apos;utilisation</Link>.</p>}
-            <Button type="submit" disabled={busy} className="w-full">{mode === "login" ? <LogIn size={18} /> : <UserPlus size={18} />}{busy ? "Traitement en cours…" : resetting ? "Envoyer le lien de récupération" : mode === "login" ? "Se connecter" : "Créer mon compte"}</Button>
+            <Button type="submit" disabled={busy} className="w-full">{mode === "login" ? <LogIn size={18} /> : <UserPlus size={18} />}{busy ? "Traitement en cours…" : resetting ? "Envoyer le code de récupération" : mode === "login" ? "Se connecter" : "Créer mon compte"}</Button>
           </form>
-          {cloud && <button disabled={busy} type="button" className="min-h-11 text-sm font-medium text-indigo-700" onClick={() => { setResetting(!resetting); setMessage(null); setError(null); }}>{resetting ? "Retour à la connexion" : "Mot de passe oublié ?"}</button>}
-          {cloud && <button type="button" disabled={busy || !email} className="block min-h-11 text-sm font-medium text-indigo-700 disabled:opacity-50" onClick={() => void submit("resend", { email })}>Renvoyer la confirmation d’e-mail</button>}
+          {<button disabled={busy} type="button" className="min-h-11 text-sm font-medium text-indigo-700" onClick={() => { setResetting(!resetting); setMessage(null); setError(null); }}>{resetting ? "Retour à la connexion" : "Mot de passe oublié ?"}</button>}
+          {<button type="button" disabled={busy || !email} className="block min-h-11 text-sm font-medium text-indigo-700 disabled:opacity-50" onClick={() => void submit("resend", { email })}>Renvoyer la confirmation d’e-mail</button>}
+          {<form className="space-y-4 border-t pt-4" onSubmit={event => { event.preventDefault(); void submit(resetting ? "recover" : "verify", { ...Object.fromEntries(new FormData(event.currentTarget)), email }); }}>
+            <label className="field-label">Code reçu par e-mail<Input name="code" inputMode="numeric" autoComplete="one-time-code" required /></label>
+            {resetting && <label className="field-label">Nouveau mot de passe<Input name="password" type="password" autoComplete="new-password" minLength={12} required /></label>}
+            <Button disabled={busy || !email} variant="secondary">{resetting ? "Réinitialiser le mot de passe" : "Confirmer mon adresse"}</Button>
+          </form>}
         </div>
       ) : (
         <>
@@ -72,7 +89,7 @@ export function AccountPanel({ user, initialMode = "login", cloud = false, initi
             <div className="grid gap-4 sm:grid-cols-2"><label className="field-label">Mot de passe actuel<Input type="password" name="currentPassword" autoComplete="current-password" required /></label><label className="field-label">Nouveau mot de passe<Input type="password" name="password" autoComplete="new-password" minLength={12} placeholder="12 caractères minimum" required /></label></div>
             <Button type="submit" variant="secondary" disabled={busy}><KeyRound size={17} /> Changer le mot de passe</Button>
           </form>
-          <div className="flex flex-wrap gap-3"><Button type="button" variant="ghost" disabled={busy} onClick={() => void submit("logout", {})}><LogOut size={17} /> Se déconnecter</Button>{cloud && <Button type="button" variant="secondary" disabled={busy} onClick={() => { if (window.confirm("Déconnecter les sessions de ce compte sur tous les appareils ?")) void submit("logout-all", {}); }}><LogOut size={17} />Déconnecter tous les appareils</Button>}</div>
+          <div className="flex flex-wrap gap-3"><Button type="button" variant="ghost" disabled={busy} onClick={() => void submit("logout", {})}><LogOut size={17} /> Se déconnecter</Button>{<Button type="button" variant="secondary" disabled={busy} onClick={() => { if (window.confirm("Déconnecter les sessions de ce compte sur tous les appareils ?")) void submit("logout-all", {}); }}><LogOut size={17} />Déconnecter tous les appareils</Button>}</div>
         </>
       )}
     </div>

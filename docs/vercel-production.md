@@ -20,10 +20,9 @@ Dans Settings > Environment Variables, reporter les valeurs de .env :
 
 | Variable | Valeur |
 | --- | --- |
-| ACCOUNT_PROVIDER | supabase |
-| NEXT_PUBLIC_SUPABASE_URL | URL du projet Supabase |
-| NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | Cle publique |
-| SUPABASE_SECRET_KEY | Cle serveur privee, marquer Secret/Sensitive |
+| DATABASE_URL | Connexion Neon poolee, marquer Secret/Sensitive |
+| NEON_AUTH_BASE_URL | URL Neon Auth de la branche de production |
+| NEON_AUTH_COOKIE_SECRET | 32 caracteres minimum, marquer Secret/Sensitive |
 | APP_URL | Origine HTTPS stable de production, sans chemin |
 | PAYPAL_ENV | sandbox pendant la validation, live uniquement apres configuration Live |
 | PAYPAL_CLIENT_ID | Client du mode PayPal choisi |
@@ -31,10 +30,11 @@ Dans Settings > Environment Variables, reporter les valeurs de .env :
 | PAYPAL_WEBHOOK_ID | Webhook du meme mode |
 
 Ne pas importer aveuglement tout .env : les chemins locaux, secrets Zoom et
-parametres SQLite ne doivent pas etre recopies sur Vercel. Ne jamais placer
-la cle serveur Supabase dans une variable NEXT_PUBLIC.
+DATABASE_URL_UNPOOLED (migrations) ne doivent pas etre recopies sur Vercel.
+Ne jamais placer un secret Neon dans une variable NEXT_PUBLIC.
+Supprimer les anciennes variables Supabase et ACCOUNT_PROVIDER.
 Ne pas partager la base de production avec les previews non fiables ; utiliser
-un projet Supabase de preproduction et PayPal Sandbox pour les previews.
+une branche Neon de preproduction et PayPal Sandbox pour les previews.
 
 Les nouvelles variables ne s'appliquent qu'au prochain deploiement.
 NEXT_PUBLIC est notamment integre au build.
@@ -43,8 +43,9 @@ NEXT_PUBLIC est notamment integre au build.
 
 Choisir le domaine Production stable dans Settings > Domains, pas une URL
 unique de deploiement. APP_URL doit correspondre a cette origine.
-Configurer Site URL, redirects, SMTP et les deux modeles email selon
-docs/supabase.md. Ne pas desactiver la confirmation email pour contourner SMTP.
+Dans la console Neon Auth, ajouter le domaine de production aux domaines de
+confiance et configurer le fournisseur e-mail (codes de verification et de
+recuperation). Ne pas desactiver la verification e-mail pour contourner SMTP.
 
 Dans PayPal Developer, creer ou modifier le webhook vers :
 
@@ -74,7 +75,7 @@ passe et paiement Sandbox complet sur le domaine public.
 
 ## Limites
 
-Le studio FFmpeg.wasm fonctionne sur l'appareil ; Supabase conserve les comptes
+Le studio FFmpeg.wasm fonctionne sur l'appareil ; Neon conserve les comptes
 et droits. Les projets restent actuellement dans le navigateur.
 Vercel ne fournit pas le processus persistant, disque durable et binaires
 requis par les captures Live/Zoom. Voir docs/zoom-server.md et

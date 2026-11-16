@@ -18,12 +18,19 @@ import {
   run,
   toErrorBody,
 } from "@/lib/video/ytdlp";
+import { acquireYouTubeSlot, requireYouTubeUser } from "@/lib/video/youtube-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function GET(request: Request) {
+  try {
+    await requireYouTubeUser(request, { mutating: false });
+  } catch (e) {
+    const { status, body } = toErrorBody(e);
+    return NextResponse.json(body, { status });
+  }
   const id = new URL(request.url).searchParams.get("progress") ?? "";
   const progress = getDownloadProgress(id);
   return NextResponse.json(
@@ -75,15 +82,19 @@ function buildArgs(type: string, format: string, quality: number) {
 export async function POST(request: Request) {
   let dir: string | null = null;
   let downloadId: string | null = null;
+  let release: (() => void) | null = null;
   const cleanup = () => {
+    release?.();
     if (dir) void rm(dir, { recursive: true, force: true }).catch(() => {});
     dir = null;
     if (downloadId) removeDownloadProgress(downloadId);
   };
 
   try {
+    const user = await requireYouTubeUser(request);
     const body = await request.json().catch(() => null);
     const url = assertYouTubeUrl(body?.url);
+    release = acquireYouTubeSlot(user.id);
     const type = String(body?.type ?? "video");
     const format = String(body?.format ?? "mp4");
     const quality = Number(body?.quality);
